@@ -28,7 +28,7 @@
 #define NOS 8
 #define NW (OSB + NOS)
 #define OSW(i) cfg.w[OSB + (i)]
-enum { OS_TIMEOUT, OS_SPEED, OS_GREET, OS_GLOGO, OS_GLOOPS, OS_SMODE, OS_FRMS, OS_RES };   // giay cho screensaver (0 = tat), toc do chu (1-10), bat loi chao, chieu logo truoc loi chao, so lan chay loi chao, che do screensaver (0 chu, 1 logo, 2 xen ke, 3 tat man hinh), ms moi khung logo
+enum { OS_TIMEOUT, OS_SPEED, OS_GREET, OS_GLOGO, OS_GLOOPS, OS_SMODE, OS_FRMS, OS_CORNER };   // giay cho screensaver (0 = tat), toc do chu (1-10), bat loi chao, chieu logo truoc loi chao, so lan chay loi chao, che do screensaver (0 chu, 1 logo, 2 xen ke, 3 tat man hinh), ms moi khung logo, bat logo nho o goc man hinh (0/1; chi huong ngang)
 #define LROT(l) cfg.w[LRB + (l)]
 #define LD(i) cfg.w[LDB + (i)]
 enum { LD_MODE, LD_SPEED, LD_BRIGHT, LD_HUE, LD_SAT, LD_OVER, LD_OBMODE, LD_OBBRI, LD_ROT };   // che do day den, toc do, do sang, mau (0-359), bao hoa, nhay khi bam, che do den onboard, do sang nen onboard, xoay OLED (0=0, 1=90, 2=180, 3=270; chinh tu app)
@@ -92,7 +92,7 @@ static void lname_get(int l, char *o) {   // o >= NM + 1 byte: ten layer l (ten 
 }
 
 static void led_defaults(void) { LD(LD_MODE) = 0; LD(LD_SPEED) = 128; LD(LD_BRIGHT) = 200; LD(LD_HUE) = 210; LD(LD_SAT) = 255; LD(LD_OVER) = 1; LD(LD_OBMODE) = 0; LD(LD_OBBRI) = LED_BASE; LD(LD_ROT) = OLED_ROT_DEF; }
-static void os_defaults(void) { OSW(OS_TIMEOUT) = 300; OSW(OS_SPEED) = 5; OSW(OS_GREET) = 1; OSW(OS_GLOGO) = 0; OSW(OS_GLOOPS) = 1; OSW(OS_SMODE) = 0; OSW(OS_FRMS) = 120; }
+static void os_defaults(void) { OSW(OS_TIMEOUT) = 300; OSW(OS_SPEED) = 5; OSW(OS_GREET) = 1; OSW(OS_GLOGO) = 0; OSW(OS_GLOOPS) = 1; OSW(OS_SMODE) = 0; OSW(OS_FRMS) = 120; OSW(OS_CORNER) = 0; }
 static void defaults(void) {
   static const uint8_t pos[15] = {0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 15, 16, 17};
   memset(&cfg, 0, sizeof cfg); cfg.magic = MAGIC; cfg.w[NLI] = 4; led_defaults();
@@ -124,6 +124,7 @@ static void load(void) {
   if (cfg.magic != MAGIC) defaults();
   else if (LD(LD_MODE) >= NFX || LD(LD_BRIGHT) > 255 || LD(LD_OBMODE) >= NOB) led_defaults();   // cau hinh cu (chua co khoi LED, vung nay = 0xFFFF): giu phim, chi dat LED ve mac dinh
   if (OSW(OS_SPEED) < 1 || OSW(OS_SPEED) > 10 || OSW(OS_TIMEOUT) > 43200 || OSW(OS_FRMS) < 20 || OSW(OS_FRMS) > 2000 || OSW(OS_SMODE) > 3 || OSW(OS_GLOOPS) < 1 || OSW(OS_GLOOPS) > 5 || OSW(OS_GREET) > 1 || OSW(OS_GLOGO) > 1) os_defaults();   // cau hinh cu chua co khoi nay (0xFFFF)
+  if (OSW(OS_CORNER) > 1) OSW(OS_CORNER) = 0;   // cau hinh cu (o du phong = 0xFFFF)
   if (LD(LD_ROT) > 3) LD(LD_ROT) = OLED_ROT_DEF;   // cau hinh cu chua co o xoay (0xFFFF)
 }
 static uint8_t sbuf[CFG_BUF];
@@ -679,7 +680,8 @@ static uint32_t scan(void) {
 }
 static void enc_poll(void) {
   static const int8_t t[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
-  static uint8_t prev[3]; static int8_t acc[3];
+  static uint8_t prev[3]; static int8_t acc[3]; static bool inited;
+  if (!inited) { inited = true; for (int e = 0; e < 3; e++) prev[e] = gpio_get(encp[e][0]) << 1 | gpio_get(encp[e][1]); return; }   // chan keo len -> trang thai nghi la 3, khong phai 0: neu khong se tinh la "thao tac" va huy loi chao
   for (int e = 0; e < 3; e++) {
     uint8_t cur = gpio_get(encp[e][0]) << 1 | gpio_get(encp[e][1]);
     if (cur == prev[e]) continue;
@@ -762,9 +764,11 @@ static void render_rename_h(void) {
   if (rn_len < NM) for (int a = 0; a < 5 * sc; a++) for (int b = 0; b < (OLED_H == 32 ? 1 : sc); b++) px(x + rn_len * 6 * sc + a, y + 7 * sc + b);   // con tro (font khong co '_')
   txt(0, OLED_H - 8, 1, "ENT:OK RENAME:CANCEL");
 }
+static void corner_logo(void);
 static void render_h(bool vis) {
   memset(fb, 0, sizeof fb);
   if (rn_active) { render_rename_h(); return; }
+  corner_logo();
   uint16_t hk[4]; int nh = held_list(hk);
   int y1 = (nh || OLED_H > 32) ? OLED_H - 8 * HELD_SC : OLED_H, ah = y1 - MAIN_Y, cap;
   char big[12];
@@ -851,6 +855,15 @@ static int od_text(int which, char *o) {   // which 0 = loi chao, 1 = screensave
   for (int i = 0; i < n; i++) o[i] = p[1 + i] < 32 || p[1 + i] > 126 ? ' ' : p[1 + i];
   o[n] = 0; return n;
 }
+static void corner_logo(void) {   // logo nho o goc tren trai: khung 0 cua logo dong thu nho 4 lan (128xH -> 32 x H/4), chi ve khi man hinh nam ngang
+  if (OSW(OS_CORNER) != 1 || ROT_V || od_frames() < 1) return;
+  const uint8_t *f = odimg + 4 + 256;
+  for (int dy = 0; dy < OLED_H / 4; dy++) for (int dx = 0; dx < 32; dx++) {
+    int n = 0;
+    for (int b = 0; b < 4; b++) for (int a = 0; a < 4; a++) { int x = dx * 4 + a, y = dy * 4 + b; n += f[(y >> 3) * 128 + x] >> (y & 7) & 1; }
+    if (n >= 3) px(dx, dy);
+  }
+}
 static void oled_pwr(bool on) { uint8_t c[] = {0, on ? 0xAF : 0xAE}; i2c_write_timeout_us(i2c0, OA, c, 2, false, 5000); }
 
 enum { OM_NORMAL, OM_FX };
@@ -919,8 +932,10 @@ static void fx_step(uint32_t now) {   // ve 1 khung len fb (opage phai bang 0 sa
   }
   opage = 0;
 }
+static void oled_try_init(void);
 static void oled_task(uint32_t now) {
   static uint32_t lt; static bool ip; static int lrot = -1;
+  static uint32_t lretry; if (!oled_ok && now - lretry >= 200) { lretry = now; oled_try_init(); }
   if (opage >= OLED_PAGES) { int r = cur_rot(); if (r != lrot) { lrot = r; rot_now = r; odirty = true; } }   // doi layer / doi huong tu app -> ve lai ngay
   if (!oled_ok) return;
   static uint32_t lact, lchk;
@@ -937,11 +952,15 @@ static void oled_task(uint32_t now) {
   bool vis = lastn[0] && (now - ot < 1200 || held_has(rkc)); if (vis != ip) { ip = vis; odirty = true; }
   if (odirty && now - lt >= 30) { lt = now; odirty = false; render(vis); opage = 0; }
 }
-static void oled_init(void) {
+static bool oled_greeted;
+static void oled_try_init(void) {
   static const uint8_t ini[] = {0, 0xAE, 0xD5, 0x80, 0xA8, OLED_H - 1, 0xD3, 0, 0x40, 0x8D, 0x14, 0x20, 0x00, 0xA1, 0xC8, 0xDA, OLED_H == 32 ? 0x02 : 0x12, 0x81, 0xFF, 0xD9, 0xF1, 0xDB, 0x40, 0xA4, 0xA6, 0xAF};
-  i2c_init(i2c0, 400000); gpio_set_function(12, GPIO_FUNC_I2C); gpio_set_function(13, GPIO_FUNC_I2C); gpio_pull_up(12); gpio_pull_up(13);
   oled_ok = i2c_write_timeout_us(i2c0, OA, ini, sizeof ini, false, 10000) > 0; odirty = true;
-  if (OSW(OS_GREET)) fx_start(1, ms());   // loi chao luc cam USB
+  if (oled_ok && !oled_greeted) { oled_greeted = true; if (OSW(OS_GREET)) fx_start(1, ms()); }   // loi chao luc cam USB
+}
+static void oled_init(void) {
+  i2c_init(i2c0, 400000); gpio_set_function(12, GPIO_FUNC_I2C); gpio_set_function(13, GPIO_FUNC_I2C); gpio_pull_up(12); gpio_pull_up(13);
+  oled_try_init();
 }
 
 // ---- Raw HID: [cmd, off, n, data...] cmd 1=doc 2=ghi 3=luu flash 4=mac dinh 5=info 6=doc macro 7=ghi macro (byte, n<=28, off cao o byte 31) ----
@@ -956,7 +975,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t id, hid_report_type_t t, uint8_t
       if (b[0] == 2 && sz >= 3 + 2 * (i + 1)) cfg.w[off + i] = b[3 + 2 * i] | b[4 + 2 * i] << 8;
       rep[3 + 2 * i] = cfg.w[off + i] & 255; rep[4 + 2 * i] = cfg.w[off + i] >> 8;
     }
-    if (b[0] == 2) relayer();
+    if (b[0] == 2) { relayer(); odirty = true; }
   } else if ((b[0] == 6 || b[0] == 7) && sz >= 3 && b[2] <= 28 && off + b[2] <= NMAC * MSLOT) {   // 6 = doc macro, 7 = ghi macro (theo byte)
     rep[1] = b[1]; rep[2] = b[2]; rep[31] = off >> 8;
     if (b[0] == 7) { mc_stop(); mac_dirty = true; }
@@ -966,7 +985,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t id, hid_report_type_t t, uint8_t
     }
   } else if ((b[0] == 8 || b[0] == 9) && sz >= 3 && b[2] <= 28 && off + b[2] <= OD_SZ) {
     rep[1] = b[1]; rep[2] = b[2]; rep[31] = off >> 8;
-    if (b[0] == 9) od_dirty = true;
+    if (b[0] == 9) { od_dirty = true; odirty = true; }
     for (int i = 0; i < b[2]; i++) {
       if (b[0] == 9 && sz >= 4 + i) odimg[4 + off + i] = b[3 + i];
       rep[3 + i] = odimg[4 + off + i];

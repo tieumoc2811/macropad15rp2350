@@ -47,7 +47,9 @@ enum { LD_MODE, LD_SPEED, LD_BRIGHT, LD_HUE, LD_SAT, LD_OVER, LD_OBMODE, LD_OBBR
 #define EXT_PIN 4         // led WS2812 ngoai (7 mau), dong bo voi led tren board
 #define STRIP_PIN 11      // day den WS2812 ngoai (DIN) - doi chan neu can
 #define STRIP_N 15        // so den tren day
-#define STRIP_SNAKE 1     // 1 = di day chu S (hang le di nguoc), 0 = moi hang di tu trai sang phai
+#define STRIP_GW 5        // luoi den = bo cuc PHIM THAT (nhu app): 5 cot x 3 hang, den thu i nam duoi phim o vi tri vat ly do
+#define STRIP_GH 3
+#define STRIP_SNAKE 1     // 1 = di day chu S theo hang vat ly (hang le di nguoc), 0 = moi hang di tu trai sang phai
 #define STRIP_BASE 56     // do sang nen cua day den (0-255), giu thap de khong qua dong USB
 #define LED_BASE 24       // do sang nen (0-255)
 #define CFG_BUF 4096         // 1 sector flash: cfg (< NAME_OFF) + ten layer (tu NAME_OFF)
@@ -214,11 +216,12 @@ static void heat_rgb(uint8_t t, uint8_t *o) {
 static void led_flash(void);
 
 // ---- day den ngoai STRIP_N led (WS2812, STRIP_PIN): moi phim 1 led; NFX che do ----
+// Luoi den: 5 cot x 3 hang theo vi tri phim vat ly; thu tu day (S): R0 0-4 trai->phai, R1 9-5 phai->trai, R2 10-14 trai->phai
 //  0 Layer (mau theo layer, nhay khi bam)  1 Bay 7 mau  2 Tat  3 Mau tinh  4 Tho  5 Song cau vong  6 Doi mau
 //  7 Duoi theo day  8 Gon song khi bam  9 Lua  10 Lap lanh  11 Mua roi  12 Cuc quang  13 Sang theo phim  14 Quet cot  15 Phim doi mau
 //  16 Cot sang  17 Hang ngang  18 Chu thap  19 Set  20 Ban do nhiet  21 Sao choi  22 Dao mau  23 No tia  24 Phao hoa
 static uint8_t sfl[STRIP_N], sx[STRIP_N], sy[STRIP_N], tw[STRIP_N], twh[STRIP_N], keyh[STRIP_N], heat[STRIP_N];
-static int8_t klut[NK], gidx[4][4]; static uint32_t st_t, st_last[STRIP_N], fire_t;
+static int8_t klut[NK], gidx[STRIP_GH][STRIP_GW]; static uint32_t st_t, st_last[STRIP_N], fire_t;
 static struct { uint16_t x, y; uint32_t t; uint8_t on; } rip[4]; static uint8_t rip_n;
 static const uint8_t KEYPOS[15] = {0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 15, 16, 17};
 static const uint8_t PAL7[7][3] = {{255, 0, 0}, {255, 110, 0}, {255, 220, 0}, {0, 255, 40}, {0, 220, 255}, {0, 60, 255}, {190, 0, 255}};
@@ -228,12 +231,13 @@ static uint32_t hmap[STRIP_N], trl[STRIP_N];                                    
 static void hits_add(int i) { uint8_t k = hits_n++ & 7; hits[k].t = ms(); hits[k].i = i; hits[k].h = rnd32() >> 24; hits[k].on = 1; }
 static uint32_t life256(uint32_t age, uint32_t dur) { return age >= dur ? 0 : 256 - age * 256 / dur; }
 static void strip_map(void) {
-  static const uint8_t rs[4] = {0, 4, 8, 12}, rc[4] = {4, 4, 4, 3};
+  // phim o ma tran (r,c) nam o vi tri vat ly n = c*4 + r -> cot n%5, hang n/5 (giong VIS trong app); den = hang*5 + cot (hang le dao chieu neu SNAKE)
   memset(klut, -1, sizeof klut); memset(gidx, -1, sizeof gidx);
-  for (int i = 0; i < STRIP_N; i++) { sx[i] = i & 3; sy[i] = (i >> 2) & 3; }
+  for (int i = 0; i < STRIP_N; i++) { sx[i] = i % STRIP_GW; sy[i] = i / STRIP_GW; }
   for (int i = 0; i < 15; i++) {
-    int r = KEYPOS[i] / 5, c = KEYPOS[i] % 5, idx = rs[r] + ((STRIP_SNAKE && (r & 1)) ? rc[r] - 1 - c : c);
-    if (idx < STRIP_N && r < 4 && c < 4) { klut[KEYPOS[i]] = idx; sx[idx] = c; sy[idx] = r; gidx[r][c] = idx; }
+    int r = KEYPOS[i] / 5, c = KEYPOS[i] % 5, n = c * 4 + r, pc = n % STRIP_GW, pr = n / STRIP_GW;
+    int idx = pr * STRIP_GW + ((STRIP_SNAKE && (pr & 1)) ? STRIP_GW - 1 - pc : pc);
+    if (idx < STRIP_N && pr < STRIP_GH) { klut[KEYPOS[i]] = idx; sx[idx] = pc; sy[idx] = pr; gidx[pr][pc] = idx; }
   }
 }
 static void ripple_add(int x16, int y16) { rip[rip_n & 3].x = x16; rip[rip_n & 3].y = y16; rip[rip_n & 3].t = ms(); rip[rip_n & 3].on = 1; rip_n++; }
@@ -243,7 +247,7 @@ static void strip_key(int p) {
     hits_add(i); hmap[i] += 60u << 10; if (hmap[i] > 255u << 10) hmap[i] = 255u << 10; trl[i] = 255u << 10;
   } else {
     uint8_t h = rnd32() >> 24; for (int i = 0; i < STRIP_N; i++) { sfl[i] = 170; keyh[i] = h; hmap[i] += 25u << 10; if (hmap[i] > 255u << 10) hmap[i] = 255u << 10; trl[i] = 200u << 10; }
-    ripple_add(24, 24); hits_add(-1);
+    ripple_add((STRIP_GW - 1) * 8, (STRIP_GH - 1) * 8); hits_add(-1);
   }
 }
 static void strip_all(void) { strip_key(-1); }
@@ -261,9 +265,9 @@ static void strip_task(uint32_t now) {
   // mo phong co trang thai (lua, lap lanh)
   if (mode == 9 && now - fire_t >= 90 - spdv / 4) {
     fire_t = now;
-    for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) {
+    for (int y = 0; y < STRIP_GH; y++) for (int x = 0; x < STRIP_GW; x++) {
       int i = gidx[y][x]; if (i < 0) continue;
-      int b = y < 3 ? gidx[y + 1][x] : -1;
+      int b = y < STRIP_GH - 1 ? gidx[y + 1][x] : -1;
       if (b >= 0) { int h = heat[b] * 7 / 8 - (int)(rnd32() % 30); heat[i] = h < 0 ? 0 : h; }
       else heat[i] = (heat[i] * 2 + 130 + rnd32() % 126) / 3;
     }
@@ -295,10 +299,10 @@ static void strip_task(uint32_t now) {
       }
       case 9: heat_rgb(heat[i], c); ovl = false; break;
       case 10: hsv(twh[i], sat, tw[i], c); break;
-      case 11: { int head = (int)(((u * 4 + x * 77) & 255) * 7 / 256), d = head - y; hsv(H0, sat, d == 0 ? 255 : d == 1 ? 150 : d == 2 ? 70 : d == 3 ? 25 : 0, c); break; }
+      case 11: { int head = (int)(((u * 4 + x * 77) & 255) * (STRIP_GH + 3) / 256), d = head - y; hsv(H0, sat, d == 0 ? 255 : d == 1 ? 150 : d == 2 ? 70 : d == 3 ? 25 : 0, c); break; }
       case 12: hsv(H0 + (tri8(u * 2 + x * 50 + y * 30) >> 1), sat, 120 + (tri8(u * 3 + x * 70) >> 1), c); break;
       case 13: hsv(H0, sat, 8 + f * 247 / 255, c); ovl = false; break;
-      case 14: { int p16 = tri8(u * 2) * 48 / 255, d = abs(x * 16 - p16); hsv(H0, sat, d < 40 ? 12 + 243 * (40 - d) / 40 : 12, c); break; }
+      case 14: { int p16 = tri8(u * 2) * ((STRIP_GW - 1) * 16) / 255, d = abs(x * 16 - p16); hsv(H0, sat, d < 40 ? 12 + 243 * (40 - d) / 40 : 12, c); break; }
       case 16: case 17: case 18: {
         uint32_t v = 0;
         for (int r = 0; r < 8; r++) {
@@ -335,7 +339,7 @@ static void strip_task(uint32_t now) {
         uint32_t v = 0; uint8_t hh = H0;
         for (int r = 0; r < 8; r++) {
           if (!hits[r].on) continue; uint32_t a2 = now - hits[r].t;
-          int d2 = hits[r].i < 0 ? abs(2 * x - 3) + abs(2 * y - 3) : 2 * (abs(x - sx[hits[r].i]) + abs(y - sy[hits[r].i]));
+          int d2 = hits[r].i < 0 ? abs(2 * x - (STRIP_GW - 1)) + abs(2 * y - (STRIP_GH - 1)) : 2 * (abs(x - sx[hits[r].i]) + abs(y - sy[hits[r].i]));
           int r256 = (int)(a2 * 5 * 256 / dur), del = abs(d2 * 128 - r256);
           if (del < 179) { uint32_t val = 255 * (179 - del) / 179 * life256(a2, dur) / 256; if (val > v) { v = val; hh = H0 + d2 * 11; } }
         }

@@ -24,7 +24,11 @@
 #define LDB (NLI + 1)        // khoi cau hinh LED (app chinh): NLD o
 #define NLD 9
 #define LRB (LDB + NLD)      // khoi xoay OLED theo layer: L o, 0-3 = 0/90/180/270 do, >=4 = theo cai dat chung (LD_ROT)
-#define NW (LRB + L)
+#define OSB (LRB + L)        // khoi cai dat man hinh OLED (loi chao / screensaver / logo): NOS o
+#define NOS 8
+#define NW (OSB + NOS)
+#define OSW(i) cfg.w[OSB + (i)]
+enum { OS_TIMEOUT, OS_SPEED, OS_GREET, OS_GLOGO, OS_GLOOPS, OS_SMODE, OS_FRMS, OS_RES };   // giay cho screensaver (0 = tat), toc do chu (1-10), bat loi chao, chieu logo truoc loi chao, so lan chay loi chao, che do screensaver (0 chu, 1 logo, 2 xen ke, 3 tat man hinh), ms moi khung logo
 #define LROT(l) cfg.w[LRB + (l)]
 #define LD(i) cfg.w[LDB + (i)]
 enum { LD_MODE, LD_SPEED, LD_BRIGHT, LD_HUE, LD_SAT, LD_OVER, LD_OBMODE, LD_OBBRI, LD_ROT };   // che do day den, toc do, do sang, mau (0-359), bao hoa, nhay khi bam, che do den onboard, do sang nen onboard, xoay OLED (0=0, 1=90, 2=180, 3=270; chinh tu app)
@@ -65,7 +69,7 @@ enum { LD_MODE, LD_SPEED, LD_BRIGHT, LD_HUE, LD_SAT, LD_OVER, LD_OBMODE, LD_OBBR
 #define MAC_OFF (FLASH_OFF - MAC_SZ)
 #define MAC_MAGIC 0x3143414Du
 #define MH 8                 // so phim macro co the giu cung luc
-#define FW_VER 4             // giao thuc: 4 = co macro + 25 hieu ung
+#define FW_VER 5             // giao thuc: 5 = them loi chao / screensaver / logo dong cho OLED
 #define KC_RENAME 0x7020     // doi ten layer dang hien (go bang phim Nokia)
 _Static_assert(sizeof(uint32_t) + 2 * NW <= NAME_OFF, "cfg qua lon");
 #define FLASH_OFF (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
@@ -88,10 +92,12 @@ static void lname_get(int l, char *o) {   // o >= NM + 1 byte: ten layer l (ten 
 }
 
 static void led_defaults(void) { LD(LD_MODE) = 0; LD(LD_SPEED) = 128; LD(LD_BRIGHT) = 200; LD(LD_HUE) = 210; LD(LD_SAT) = 255; LD(LD_OVER) = 1; LD(LD_OBMODE) = 0; LD(LD_OBBRI) = LED_BASE; LD(LD_ROT) = OLED_ROT_DEF; }
+static void os_defaults(void) { OSW(OS_TIMEOUT) = 300; OSW(OS_SPEED) = 5; OSW(OS_GREET) = 1; OSW(OS_GLOGO) = 0; OSW(OS_GLOOPS) = 1; OSW(OS_SMODE) = 0; OSW(OS_FRMS) = 120; }
 static void defaults(void) {
   static const uint8_t pos[15] = {0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 15, 16, 17};
   memset(&cfg, 0, sizeof cfg); cfg.magic = MAGIC; cfg.w[NLI] = 4; led_defaults();
   for (int l = 0; l < L; l++) LROT(l) = 4;   // moi layer theo huong chung
+  os_defaults();
   for (int l = 2; l < L; l++) for (int i = 0; i < NK; i++) KM(l, i) = KC_TRNS;
   for (int l = 2; l < L; l++) for (int e = 0; e < 3; e++) for (int d = 0; d < 2; d++) EN(l, e, d) = KC_TRNS;
   for (int i = 0; i < 15; i++) {
@@ -117,6 +123,7 @@ static void load(void) {
   memcpy(&cfg, (const void *)(XIP_BASE + FLASH_OFF), sizeof cfg);
   if (cfg.magic != MAGIC) defaults();
   else if (LD(LD_MODE) >= NFX || LD(LD_BRIGHT) > 255 || LD(LD_OBMODE) >= NOB) led_defaults();   // cau hinh cu (chua co khoi LED, vung nay = 0xFFFF): giu phim, chi dat LED ve mac dinh
+  if (OSW(OS_SPEED) < 1 || OSW(OS_SPEED) > 10 || OSW(OS_TIMEOUT) > 43200 || OSW(OS_FRMS) < 20 || OSW(OS_FRMS) > 2000 || OSW(OS_SMODE) > 3 || OSW(OS_GLOOPS) < 1 || OSW(OS_GLOOPS) > 5 || OSW(OS_GREET) > 1 || OSW(OS_GLOGO) > 1) os_defaults();   // cau hinh cu chua co khoi nay (0xFFFF)
   if (LD(LD_ROT) > 3) LD(LD_ROT) = OLED_ROT_DEF;   // cau hinh cu chua co o xoay (0xFFFF)
 }
 static uint8_t sbuf[CFG_BUF];
@@ -132,6 +139,7 @@ static int nl(void) { uint16_t v = cfg.w[NLI]; return v < 1 ? 1 : v > L ? L : v;
 static uint16_t pressed[NK], tap, q[16], lat; static uint8_t qh, qt, tap_phase, tg;
 static bool dirty, latch_wait, odirty;
 static bool rn_active, nsave_req;                 // dang doi ten layer / can luu ten vao flash
+static uint32_t act_ms;                            // thoi diem co thao tac phim / encoder gan nhat (danh thuc man hinh)
 static uint32_t pseq[NK + 5], sq, ot;             // thu tu bam (phim dang de: pressed[], lat, 4 toggle), thoi diem bam/nha gan nhat
 static void oled_forget(void);
 static void rename_start(void);
@@ -635,6 +643,7 @@ static void apply(uint32_t raw) {
   static uint32_t st;
   for (int p = 0; p < NK; p++) {
     uint32_t b = 1u << p; if (!((raw ^ st) & b)) continue;
+    act_ms = ms();
     if (rn_active) {   // dang doi ten: phim vua bam di vao o ten, khong gui xuong may tinh
       if (raw & b) { rn_sw |= b; rename_key(p); continue; }
       else if (rn_sw & b) { rn_sw &= ~b; continue; }
@@ -674,6 +683,7 @@ static void enc_poll(void) {
   for (int e = 0; e < 3; e++) {
     uint8_t cur = gpio_get(encp[e][0]) << 1 | gpio_get(encp[e][1]);
     if (cur == prev[e]) continue;
+    act_ms = ms();
     acc[e] += t[prev[e] << 2 | cur]; prev[e] = cur;
     int d = acc[e] >= 4 ? 1 : acc[e] <= -4 ? 0 : -1;
     if (d >= 0) { acc[e] = 0; if (rn_active) continue; led_flash(); strip_all(); uint16_t k = res_enc(e, d); if (layer_action(k)) { /* da chuyen layer */ } else if ((k & 0xFF00) == 0x7100 && (k & 255) < NMAC) { if (mc_id < 0) mc_start(k & 255); } else if (k) { char nm[8]; kcname(k, nm); note(k, nm); qpush(k); } }
@@ -813,14 +823,117 @@ static void render_v(bool vis) {
   }
 }
 static void render(bool vis) { if (ROT_V) render_v(vis); else render_h(vis); }
+
+// ---- loi chao / screensaver / logo dong: du lieu luu flash rieng (OD_OFF) ----
+// odimg: [0..3] magic, sau do (offset app): 0 = so khung logo, 16 = do dai chu chao + 63 ky tu, 80 = do dai chu screensaver + 63 ky tu, 256 + i * OD_FSZ = khung logo i (dang trang SSD1306: 128 cot x trang 8 diem)
+#define OD_NF 16
+#define OD_FSZ (128 * OLED_PAGES)
+#define OD_SZ (256 + OD_NF * OD_FSZ)
+#define OD_FL (((OD_SZ + 4) + FLASH_SECTOR_SIZE - 1) / FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE)
+#define OD_OFF (MAC_OFF - OD_FL)
+#define OD_MAGIC 0x3144444Fu
+static uint8_t odimg[OD_FL] __attribute__((aligned(4)));
+static bool od_dirty;
+static void od_defaults(void) {
+  uint32_t mg = OD_MAGIC; memset(odimg, 0, sizeof odimg); memcpy(odimg, &mg, 4);
+  static const char g[] = "HELLO MACROPAD15", sv[] = "MACROPAD15";
+  odimg[4 + 16] = sizeof g - 1; memcpy(odimg + 4 + 17, g, sizeof g - 1);
+  odimg[4 + 80] = sizeof sv - 1; memcpy(odimg + 4 + 81, sv, sizeof sv - 1);
+}
+static void od_load(void) {
+  uint32_t mg; memcpy(odimg, (const void *)(XIP_BASE + OD_OFF), OD_FL); memcpy(&mg, odimg, 4);
+  if (mg != OD_MAGIC) od_defaults();
+}
+static void do_save_od(void *p) { (void)p; flash_range_erase(OD_OFF, OD_FL); flash_range_program(OD_OFF, odimg, OD_FL); }
+static int od_frames(void) { int n = odimg[4]; return n > OD_NF ? 0 : n; }
+static int od_text(int which, char *o) {   // which 0 = loi chao, 1 = screensaver; tra ve do dai, chi giu ky tu in duoc
+  const uint8_t *p = odimg + 4 + (which ? 80 : 16); int n = p[0] > 63 ? 0 : p[0];
+  for (int i = 0; i < n; i++) o[i] = p[1 + i] < 32 || p[1 + i] > 126 ? ' ' : p[1 + i];
+  o[n] = 0; return n;
+}
+static void oled_pwr(bool on) { uint8_t c[] = {0, on ? 0xAF : 0xAE}; i2c_write_timeout_us(i2c0, OA, c, 2, false, 5000); }
+
+enum { OM_NORMAL, OM_FX };
+enum { FK_TEXT, FK_LOGO, FK_OFF };
+static int om = OM_NORMAL, fk, fstep, floops, fforce;   // fforce: 0 theo cai dat, 1 chi chu, 2 chi logo
+static bool fgreet, floop; static uint32_t ft0; static char fbuf[64];
+static void stxt(int x, int y, int s, const char *t) {   // nhu txt nhung bo qua ky tu ngoai man hinh (chu chay dai)
+  for (; *t; t++, x += 6 * s) {
+    if (x >= 128) break; if (x + 5 * s < 0) continue;
+    char ch = *t >= 'a' && *t <= 'z' ? *t - 32 : *t; const char *g = strchr(FC, ch); int i = g ? g - FC : 0;
+    for (int c = 0; c < 5; c++) for (int r = 0; r < 7; r++) if (FD[i * 5 + c] >> r & 1) for (int a = 0; a < s; a++) for (int b = 0; b < s; b++) px(x + c * s + a, y + r * s + b);
+  }
+}
+static void fx_end(uint32_t now) { if (fk == FK_OFF) oled_pwr(true); om = OM_NORMAL; act_ms = now; odirty = true; }
+static void fx_next(uint32_t now) {   // chon canh ke tiep (chu chay / logo / tat man hinh) hoac ket thuc
+  int nf = od_frames(), tl = od_text(fgreet ? 0 : 1, fbuf), s = fstep++, k = -1; floop = false;
+  if (fk == FK_OFF) oled_pwr(true);
+  if (fforce == 1) { if (tl) { k = FK_TEXT; floop = true; } }
+  else if (fforce == 2) { if (nf) { k = FK_LOGO; floop = true; } }
+  else if (fgreet) {
+    if (OSW(OS_GLOGO) && nf) { if (s == 0) k = FK_LOGO; else s--; }
+    if (k < 0 && s < (int)OSW(OS_GLOOPS) && tl) k = FK_TEXT;
+  } else {
+    int m = OSW(OS_SMODE);
+    if (m == 3) k = FK_OFF;
+    else {
+      if (m == 0 || (m == 1 && !nf)) k = tl ? FK_TEXT : (nf ? FK_LOGO : -1);
+      else if (m == 1) k = FK_LOGO; else k = (s & 1) ? (nf ? FK_LOGO : FK_TEXT) : (tl ? FK_TEXT : (nf ? FK_LOGO : -1));
+      if (k >= 0 && (m < 2)) floop = true;
+      if (k == FK_TEXT && !tl) k = nf ? FK_LOGO : -1;
+    }
+  }
+  if (k < 0) { om = OM_NORMAL; fk = FK_TEXT; act_ms = now; odirty = true; return; }
+  fk = k; ft0 = now; if (k == FK_OFF) oled_pwr(false);
+}
+static void fx_start(int what, uint32_t now) {   // 0 dung, 1 loi chao, 2 screensaver, 3 chi chu, 4 chi logo
+  if (om == OM_FX && fk == FK_OFF) oled_pwr(true);
+  if (what == 0) { om = OM_NORMAL; odirty = true; return; }
+  fgreet = what == 1; fforce = what == 3 ? 1 : what == 4 ? 2 : 0; fstep = 0; om = OM_FX; fk = FK_TEXT; fx_next(now);
+}
+static void fx_step(uint32_t now) {   // ve 1 khung len fb (opage phai bang 0 sau khi goi neu van dang chay)
+  if (fk == FK_OFF) return;
+  uint32_t e = now - ft0; uint32_t spd = 20 + 20 * (uint32_t)OSW(OS_SPEED);
+  if (fk == FK_LOGO) {
+    int nf = od_frames(); uint32_t fm = OSW(OS_FRMS);
+    if (!nf) { fx_next(now); return; }
+    uint32_t i = e / fm;
+    if (i >= (uint32_t)nf) { if (floop) { ft0 = now; i = 0; } else { fx_next(now); return; } }
+    memset(fb, 0, sizeof fb);
+    const uint8_t *f = odimg + 4 + 256 + i * OD_FSZ; bool fl = ROT & 2;
+    for (int x = 0; x < 128; x++) for (int p = 0; p < OLED_PAGES; p++) {
+      uint8_t b = f[p * 128 + x]; if (!b) continue;
+      for (int k = 0; k < 8; k++) if (b >> k & 1) { int y = p * 8 + k, X = fl ? 127 - x : x, Y = fl ? OLED_H - 1 - y : y; fb[(Y >> 3) * 128 + X] |= 1 << (Y & 7); }
+    }
+    opage = 0; return;
+  }
+  int len = strlen(fbuf);
+  if (!ROT_V) {
+    int sc = OLED_H == 32 ? 3 : 4, w = twd(fbuf, sc);
+    if (e * spd / 1000 >= (uint32_t)(128 + w)) { if (floop) { ft0 = now; e = 0; } else { fx_next(now); return; } }
+    memset(fb, 0, sizeof fb); stxt(128 - (int)(e * spd / 1000), (OLED_H - 8 * sc) / 2, sc, fbuf);
+  } else {
+    int h = wlines(len, 1) * 9;
+    if (e * spd / 1000 >= (uint32_t)(128 + h)) { if (floop) { ft0 = now; e = 0; } else { fx_next(now); return; } }
+    memset(fb, 0, sizeof fb); wtxt(fbuf, 128 - (int)(e * spd / 1000), 1, true);
+  }
+  opage = 0;
+}
 static void oled_task(uint32_t now) {
   static uint32_t lt; static bool ip; static int lrot = -1;
   if (opage >= OLED_PAGES) { int r = cur_rot(); if (r != lrot) { lrot = r; rot_now = r; odirty = true; } }   // doi layer / doi huong tu app -> ve lai ngay
   if (!oled_ok) return;
+  static uint32_t lact, lchk;
+  if (act_ms != lact) { lact = act_ms; if (om == OM_FX) { fx_end(now); } }   // bam phim / xoay encoder: thoat loi chao hoac screensaver
   if (opage < OLED_PAGES) {
     uint8_t c[] = {0, 0x21, 0, 127, 0x22, opage, opage}; uint8_t d[129]; d[0] = 0x40; memcpy(d + 1, fb + opage * 128, 128);
     i2c_write_timeout_us(i2c0, OA, c, 7, false, 5000); i2c_write_timeout_us(i2c0, OA, d, 129, false, 5000); opage++; return;
   }
+  if (om == OM_NORMAL && OSW(OS_TIMEOUT) && !rn_active && !latch_wait && now - lchk >= 250) {   // het thoi gian khong dung -> screensaver
+    lchk = now; uint16_t hk[4];
+    if (held_list(hk)) act_ms = now; else if (now - act_ms >= (uint32_t)OSW(OS_TIMEOUT) * 1000) fx_start(2, now);
+  }
+  if (om == OM_FX) { if (now - lt >= 30) { lt = now; fx_step(now); } return; }
   bool vis = lastn[0] && (now - ot < 1200 || held_has(rkc)); if (vis != ip) { ip = vis; odirty = true; }
   if (odirty && now - lt >= 30) { lt = now; odirty = false; render(vis); opage = 0; }
 }
@@ -828,10 +941,11 @@ static void oled_init(void) {
   static const uint8_t ini[] = {0, 0xAE, 0xD5, 0x80, 0xA8, OLED_H - 1, 0xD3, 0, 0x40, 0x8D, 0x14, 0x20, 0x00, 0xA1, 0xC8, 0xDA, OLED_H == 32 ? 0x02 : 0x12, 0x81, 0xFF, 0xD9, 0xF1, 0xDB, 0x40, 0xA4, 0xA6, 0xAF};
   i2c_init(i2c0, 400000); gpio_set_function(12, GPIO_FUNC_I2C); gpio_set_function(13, GPIO_FUNC_I2C); gpio_pull_up(12); gpio_pull_up(13);
   oled_ok = i2c_write_timeout_us(i2c0, OA, ini, sizeof ini, false, 10000) > 0; odirty = true;
+  if (OSW(OS_GREET)) fx_start(1, ms());   // loi chao luc cam USB
 }
 
 // ---- Raw HID: [cmd, off, n, data...] cmd 1=doc 2=ghi 3=luu flash 4=mac dinh 5=info 6=doc macro 7=ghi macro (byte, n<=28, off cao o byte 31) ----
-static uint8_t rep[32]; static bool rep_pending, save_req;
+static uint8_t rep[32]; static bool rep_pending, save_req;   // 8 = doc du lieu OLED, 9 = ghi du lieu OLED (byte, n<=28), 10 = xem thu: byte1 0 dung / 1 loi chao / 2 screensaver / 3 chi chu / 4 chi logo
 void tud_hid_set_report_cb(uint8_t itf, uint8_t id, hid_report_type_t t, uint8_t const *b, uint16_t sz) {
   (void)id; (void)t; if (itf != 1 || sz < 1) return;
   memset(rep, 0, 32); rep[0] = b[0];
@@ -850,15 +964,23 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t id, hid_report_type_t t, uint8_t
       if (b[0] == 7 && sz >= 4 + i) macimg[4 + off + i] = b[3 + i];
       rep[3 + i] = macimg[4 + off + i];
     }
-  } else if (b[0] == 3) save_req = true;
-  else if (b[0] == 4) { defaults(); relayer(); mc_stop(); mac_defaults(); mac_dirty = true; }
-  else if (b[0] == 5) { rep[1] = L; rep[2] = NW & 255; rep[3] = NW >> 8; rep[4] = FW_VER; rep[5] = NFX; rep[6] = NMAC; rep[7] = MSLOT & 255; rep[8] = MSLOT >> 8; }
+  } else if ((b[0] == 8 || b[0] == 9) && sz >= 3 && b[2] <= 28 && off + b[2] <= OD_SZ) {
+    rep[1] = b[1]; rep[2] = b[2]; rep[31] = off >> 8;
+    if (b[0] == 9) od_dirty = true;
+    for (int i = 0; i < b[2]; i++) {
+      if (b[0] == 9 && sz >= 4 + i) odimg[4 + off + i] = b[3 + i];
+      rep[3 + i] = odimg[4 + off + i];
+    }
+  } else if (b[0] == 10 && sz >= 2) fx_start(b[1] <= 4 ? b[1] : 0, ms());
+  else if (b[0] == 3) save_req = true;
+  else if (b[0] == 4) { defaults(); relayer(); mc_stop(); mac_defaults(); mac_dirty = true; od_defaults(); od_dirty = true; }
+  else if (b[0] == 5) { rep[1] = L; rep[2] = NW & 255; rep[3] = NW >> 8; rep[4] = FW_VER; rep[5] = NFX; rep[6] = NMAC; rep[7] = MSLOT & 255; rep[8] = MSLOT >> 8; rep[9] = OLED_H; rep[10] = OD_NF; rep[11] = OD_FSZ & 255; rep[12] = OD_FSZ >> 8; }
   rep_pending = true;
 }
 uint16_t tud_hid_get_report_cb(uint8_t i, uint8_t id, hid_report_type_t t, uint8_t *b, uint16_t n) { (void)i; (void)id; (void)t; (void)b; (void)n; return 0; }
 
 int main(void) {
-  load(); mac_load();
+  load(); mac_load(); od_load();
   for (int r = 0; r < 4; r++) { gpio_init(rows[r]); gpio_set_dir(rows[r], GPIO_OUT); gpio_put(rows[r], 0); }
   for (int c = 0; c < 5; c++) { gpio_init(cols[c]); gpio_set_dir(cols[c], GPIO_IN); gpio_pull_down(cols[c]); }
   for (int e = 0; e < 3; e++) for (int i = 0; i < 2; i++) { gpio_init(encp[e][i]); gpio_set_dir(encp[e][i], GPIO_IN); gpio_pull_up(encp[e][i]); }
@@ -876,7 +998,7 @@ int main(void) {
     }
     hid_task();
     if (rep_pending && tud_hid_n_ready(1)) { tud_hid_n_report(1, 0, rep, 32); rep_pending = false; }
-    if (save_req && !rep_pending) { save_req = false; nsave_req = false; flash_safe_execute(do_save, NULL, 500); if (mac_dirty) { mac_dirty = false; flash_safe_execute(do_save_mac, NULL, 500); } }
+    if (save_req && !rep_pending) { save_req = false; nsave_req = false; flash_safe_execute(do_save, NULL, 500); if (mac_dirty) { mac_dirty = false; flash_safe_execute(do_save_mac, NULL, 500); } if (od_dirty) { od_dirty = false; flash_safe_execute(do_save_od, NULL, 500); } }
     else if (nsave_req && !rep_pending) { nsave_req = false; flash_safe_execute(do_save, (void *)1, 500); }
   }
 }

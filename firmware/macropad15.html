@@ -909,10 +909,11 @@ small.mut{font-size:10px;color:var(--muted)}
             <details class="lg-more"><summary>Nhập ảnh hoặc tạo logo từ chữ</summary>
               <div class="lg-more-grid">
                 <div>
-                  <b>Nhập ảnh vào khung đang chọn</b>
+                  <b>Nhập ảnh hoặc GIF</b><small class="mut" style="display:block;margin-top:2px">Ảnh tĩnh vào khung đang chọn; GIF động thay toàn bộ khung (tối đa 16, GIF dài hơn được lấy mẫu đều)</small>
                   <div class="slider-row"><label for="lgThr">Ngưỡng sáng</label><input type="range" id="lgThr" min="10" max="245" value="128"><output id="lgThrv">128</output></div>
-                  <div class="toggle-row" style="border-top:0"><div class="t"><b>Đảo màu ảnh</b></div><button class="switch" id="lgImgInv" aria-label="Đảo màu ảnh"></button></div>
-                  <input type="file" id="lgFile" accept="image/*" hidden><button class="btn sm" id="lgImport">Chọn ảnh…</button>
+                  <div class="toggle-row" style="border-top:0"><div class="t"><b>Đảo màu</b></div><button class="switch" id="lgImgInv" aria-label="Đảo màu ảnh"></button></div>
+                  <div class="toggle-row"><div class="t"><b>Làm mịn (dither)</b><small>Bật cho ảnh/GIF nhiều màu (chụp, phong cảnh); tắt cho logo nền tối</small></div><button class="switch" id="lgDither" aria-label="Làm mịn dither"></button></div>
+                  <input type="file" id="lgFile" accept="image/*" hidden><button class="btn sm" id="lgImport">Chọn ảnh hoặc GIF…</button>
                 </div>
                 <div>
                   <b>Tạo khung từ chữ</b>
@@ -2888,24 +2889,56 @@ function lgTogglePlay() {
   lgPlayT = setInterval(() => { drawFrame($('#lgCv'), osd.frames[lgPlayI % osd.frames.length]); lgPlayI++; }, clamp(osw(OSI.FRMS), 20, 1000));
   $('#lgPlay').textContent = '■ Dừng xem thử';
 }
-function frameFromCanvas(cv, thr, inv) {
-  const d = cv.getContext('2d').getImageData(0, 0, 128, 32).data, f = new Uint8Array(OD_FSZ);
+function frameFromCanvas(cv, thr, inv, dither) {
+  const d = cv.getContext('2d').getImageData(0, 0, 128, 32).data, f = new Uint8Array(OD_FSZ), L = new Float32Array(128 * 32);
+  for (let i = 0; i < 128 * 32; i++) { const o = i * 4; L[i] = (0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2]) * (d[o + 3] / 255); }
   for (let y = 0; y < 32; y++) for (let x = 0; x < 128; x++) {
-    const o = (y * 128 + x) * 4, lum = (0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2]) * (d[o + 3] / 255);
-    if ((lum > thr) !== !!inv) pxSet(f, x, y, 1);
+    const i = y * 128 + x, old = L[i], on = old > thr;
+    if (dither) {   // Floyd–Steinberg: giữ chi tiết ảnh/GIF khi chỉ có 1 bit mỗi điểm
+      const e = old - (on ? 255 : 0);
+      if (x < 127) L[i + 1] += e * 7 / 16;
+      if (y < 31) { if (x > 0) L[i + 127] += e * 3 / 16; L[i + 128] += e * 5 / 16; if (x < 127) L[i + 129] += e / 16; }
+    }
+    if (on !== !!inv) pxSet(f, x, y, 1);
   }
   return f;
 }
+const lgFit = (src, sw, sh) => {   // vẽ ảnh vừa khung 128x32 trên nền đen
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 32; const c = cv.getContext('2d');
+  c.fillStyle = '#000'; c.fillRect(0, 0, 128, 32);
+  const k = Math.min(128 / sw, 32 / sh), W = sw * k, H = sh * k;
+  c.imageSmoothingQuality = 'high'; c.drawImage(src, (128 - W) / 2, (32 - H) / 2, W, H);
+  return cv;
+};
+const lgOpts = () => [+$('#lgThr').value, $('#lgImgInv').classList.contains('on'), $('#lgDither').classList.contains('on')];
+async function lgImportGif(file) {
+  const dec = new ImageDecoder({ data: await file.arrayBuffer(), type: 'image/gif' });
+  await dec.tracks.ready;
+  const n = dec.tracks.selectedTrack.frameCount, pick = Math.min(n, OD_NF), [thr, inv, dith] = lgOpts();
+  if (osd.frames.length) { const ok = await ask({ title: 'Thay logo bằng GIF?', msg: `GIF có ${n} khung${n > OD_NF ? `, app lấy ${pick} khung cách đều nhau` : ''}. Các khung logo hiện tại sẽ bị thay.`, ok: 'Thay' }); if (!ok) return; }
+  const frames = []; let dur = 0;
+  for (let i = 0; i < pick; i++) {
+    const idx = pick === n ? i : Math.round(i * (n - 1) / (pick - 1)), { image } = await dec.decode({ frameIndex: idx });
+    frames.push(frameFromCanvas(lgFit(image, image.displayWidth, image.displayHeight), thr, inv, dith));
+    dur += (image.duration || 100000) / 1000; image.close();
+  }
+  dec.close();
+  osd.frames = frames; lgSel = 0;
+  setOsWord(OSI.FRMS, clamp(Math.round(dur / pick * n / pick), 20, 1000));   // giữ tổng thời lượng GIF gốc
+  renderLogo(); osdChanged(true);
+  toast(`Đã nhập GIF: ${pick} khung${n > OD_NF ? ` (lấy mẫu từ ${n})` : ''}`, 'ok', 3600);
+}
 function lgImport(file) {
+  if (/gif/i.test(file.type) || /\.gif$/i.test(file.name)) {
+    if (typeof ImageDecoder === 'undefined') toast('Trình duyệt này chưa đọc được GIF động (cần Chrome/Edge) — chỉ nhập khung đầu tiên.', 'warn', 4500);
+    else { lgImportGif(file).catch(e => toast('Không đọc được GIF: ' + e.message, 'err', 5000)); return; }
+  }
   const url = URL.createObjectURL(file), img = new Image();
   img.onload = () => {
     URL.revokeObjectURL(url);
-    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 32; const c = cv.getContext('2d');
-    c.fillStyle = '#000'; c.fillRect(0, 0, 128, 32);
-    const k = Math.min(128 / img.width, 32 / img.height), W = img.width * k, H = img.height * k;
-    c.imageSmoothingQuality = 'high'; c.drawImage(img, (128 - W) / 2, (32 - H) / 2, W, H);
+    const cv = lgFit(img, img.width, img.height);
     if (!osd.frames.length) { osd.frames.push(new Uint8Array(OD_FSZ)); lgSel = 0; }
-    osd.frames[lgSel] = frameFromCanvas(cv, +$('#lgThr').value, $('#lgImgInv').classList.contains('on'));
+    osd.frames[lgSel] = frameFromCanvas(cv, ...lgOpts());
     renderLogo(); osdChanged(true); toast('Đã nhập ảnh vào khung ' + (lgSel + 1), 'ok');
   };
   img.onerror = () => { URL.revokeObjectURL(url); toast('Không đọc được ảnh này', 'err'); };
@@ -2964,6 +2997,7 @@ function bindScreenEvents() {
   on('lgPlay', 'click', lgTogglePlay);
   on('lgThr', 'input', e => { $('#lgThrv').textContent = e.target.value; });
   on('lgImgInv', 'click', e => e.currentTarget.classList.toggle('on'));
+  on('lgDither', 'click', e => e.currentTarget.classList.toggle('on'));
   on('lgImport', 'click', () => $('#lgFile').click());
   on('lgFile', 'change', e => { const f = e.target.files && e.target.files[0]; if (f) lgImport(f); e.target.value = ''; });
   on('lgGen', 'click', lgGenerate);

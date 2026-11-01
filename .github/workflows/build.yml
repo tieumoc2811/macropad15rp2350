@@ -1,0 +1,32 @@
+name: Build RP2350 firmware
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cai toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib build-essential python3
+      - name: Lay Pico SDK 2.1.1
+        run: git clone --depth 1 --branch 2.1.1 --recurse-submodules --shallow-submodules https://github.com/raspberrypi/pico-sdk "$HOME/pico-sdk"
+      - name: Build
+        env:
+          CXXFLAGS: "-include cstdint"   # pioasm (Pico SDK 2.1.1) thieu #include <cstdint> voi g++ moi
+        run: |
+          export PICO_SDK_PATH="$HOME/pico-sdk"
+          CM=$(find "$GITHUB_WORKSPACE" -path '*/firmware/CMakeLists.txt' | head -n1)
+          if [ -z "$CM" ]; then echo "Khong tim thay firmware/CMakeLists.txt. Cac file trong repo:"; find "$GITHUB_WORKSPACE" -not -path '*/.git/*' | head -50; exit 1; fi
+          FW=$(dirname "$CM")
+          echo "FW_DIR=$FW" >> "$GITHUB_ENV"
+          cd "$FW"
+          mkdir -p build && cd build
+          cmake .. -DPICO_BOARD=pico2
+          make -j$(nproc)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macropad15_rp2350_uf2
+          path: ${{ env.FW_DIR }}/build/macropad15.uf2

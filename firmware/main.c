@@ -667,7 +667,7 @@ static void enc_poll(void) {
     if (cur == prev[e]) continue;
     acc[e] += t[prev[e] << 2 | cur]; prev[e] = cur;
     int d = acc[e] >= 4 ? 1 : acc[e] <= -4 ? 0 : -1;
-    if (d >= 0) { acc[e] = 0; if (rn_active) continue; led_flash(); strip_all(); uint16_t k = res_enc(e, d); if (layer_action(k)) { /* da chuyen layer */ } else if (k) { char nm[8]; kcname(k, nm); note(k, nm); qpush(k); } }
+    if (d >= 0) { acc[e] = 0; if (rn_active) continue; led_flash(); strip_all(); uint16_t k = res_enc(e, d); if (layer_action(k)) { /* da chuyen layer */ } else if ((k & 0xFF00) == 0x7100 && (k & 255) < NMAC) { if (mc_id < 0) mc_start(k & 255); } else if (k) { char nm[8]; kcname(k, nm); note(k, nm); qpush(k); } }
   }
 }
 static void hid_task(void) {

@@ -671,6 +671,52 @@ small.mut{font-size:10px;color:var(--muted)}
 .lg-more summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2)}
 .lg-more-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:12px;font-size:12px}
 @media(max-width:900px){.scr-grid,.lg-more-grid{grid-template-columns:1fr}}
+/* ===== Morse ===== */
+.mo-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+.mo-col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.mo-screen{position:relative;min-height:96px;max-height:220px;overflow:auto;padding:14px 16px;border-radius:12px;border:1px solid var(--line-2);background:var(--input-bg);font:500 20px/1.45 var(--mono);color:var(--text);white-space:pre-wrap;word-break:break-all;cursor:text;outline:none}
+.mo-screen:focus{border-color:var(--accent-2);box-shadow:0 0 0 3px rgba(34,211,238,.16)}
+.mo-screen em{position:absolute;left:16px;top:14px;right:16px;font:400 12.5px/1.5 var(--sans);font-style:normal;color:var(--faint);pointer-events:none}
+.mo-screen.has em{display:none}
+.mo-caret{display:inline-block;width:2px;height:1.1em;vertical-align:text-bottom;background:var(--accent-2);margin-left:1px;animation:moBlink 1s steps(1) infinite}
+@keyframes moBlink{50%{opacity:0}}
+.mo-state{display:grid;grid-template-columns:auto auto 1fr;gap:10px 22px;margin-top:12px;align-items:start}
+.mo-state small{display:block;font:600 8.5px/1 var(--mono);letter-spacing:.8px;color:var(--faint);text-transform:uppercase;margin-bottom:6px}
+.mo-code{font:700 20px/1 var(--mono);letter-spacing:3px;color:var(--accent-2);min-width:60px;display:block}
+.mo-shown{font:700 20px/1 var(--mono);color:var(--text);display:block;min-width:40px}
+.mo-next div{display:flex;flex-wrap:wrap;gap:6px}
+.mo-chip{font:600 11px/1 var(--mono);padding:5px 7px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--text-2)}
+.mo-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.mo-k{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px 10px;border-radius:14px;border:1px solid var(--line-2);background:var(--panel);color:var(--text);transition:.12s;position:relative}
+.mo-k b{font:700 26px/1 var(--mono)}
+.mo-k span{font:600 12px var(--sans);color:var(--text-2)}
+.mo-k kbd{position:absolute;top:7px;right:8px;font:600 9px var(--mono);color:var(--faint)}
+.mo-k:hover{background:var(--panel-2);transform:translateY(-1px)}
+.mo-k:active,.mo-k.press{transform:scale(.96);background:rgba(34,211,238,.14);border-color:var(--accent-2)}
+.mo-k.ok b{color:var(--ok)}
+.mo-log{display:flex;flex-wrap:wrap;gap:5px;margin-top:12px;min-height:26px}
+.mo-log i{font:600 11px/1 var(--mono);font-style:normal;padding:5px 7px;border-radius:6px;background:var(--panel-2);color:var(--text-2)}
+.mo-log i.bs{color:var(--danger)}
+.mo-pick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.mo-pick .field{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted)}
+.mo-pick select{width:100%}
+.mo-status{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-size:12px;color:var(--text-2)}
+.mo-status .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mo-sec{font:700 10px/1 var(--mono);letter-spacing:1px;color:var(--faint);text-transform:uppercase;margin:16px 0 9px}
+.mo-sec:first-child{margin-top:0}
+.mo-tab{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.mo-cell{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);text-align:left;transition:.12s}
+.mo-cell b{font:700 17px/1 var(--mono);min-width:16px;text-align:center}
+.mo-cell:hover{background:var(--panel-2);border-color:var(--line-2)}
+.mo-cell.hit{border-color:rgba(34,211,238,.5);background:rgba(34,211,238,.08)}
+.mo-cell.exact{border-color:var(--ok);background:rgba(61,220,151,.14)}
+.mo-g{display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+.mo-g i{display:block;height:5px;border-radius:3px;background:var(--text-2);opacity:.85}
+.mo-g i.d{width:5px;border-radius:50%}
+.mo-g i.h{width:14px}
+@media(max-width:980px){.mo-grid{grid-template-columns:1fr}.mo-pick{grid-template-columns:1fr 1fr}.mo-state{grid-template-columns:1fr 1fr}.mo-next{grid-column:1/-1}}
+.pill-s{font:600 11px/1 var(--mono);padding:7px 10px;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--muted)}
+.pill-s.ok{color:var(--ok);border-color:rgba(61,220,151,.35)}.pill-s.warn{color:var(--warn);border-color:rgba(255,184,107,.35)}
 </style>
 </head>
 <body>
@@ -688,6 +734,10 @@ small.mut{font-size:10px;color:var(--muted)}
       <button data-view="macro" title="Macro">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg>
         <span>Macro</span>
+      </button>
+      <button data-view="morse" title="Morse">
+        <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><path d="M10 12h4M18 12h1"/><circle cx="21" cy="12" r="1.2"/></svg>
+        <span>Morse</span>
       </button>
       <button data-view="adv" title="Nâng cao">
         <svg viewBox="0 0 24 24"><path d="M4 6h9M18 6h2M4 12h2M11 12h9M4 18h9M18 18h2"/><circle cx="15" cy="6" r="2.2"/><circle cx="8" cy="12" r="2.2"/><circle cx="15" cy="18" r="2.2"/></svg>
@@ -796,6 +846,47 @@ small.mut{font-size:10px;color:var(--muted)}
           <b>Macro</b> là một chuỗi thao tác: nhấn, giữ, nhả phím, chờ và gõ chữ. Có thể thêm từng bước hoặc bấm <b>Ghi từ bàn phím</b> để app ghi lại cả nhịp gõ. Để dùng, vào tab <b>Bàn phím</b>, chọn một phím rồi chọn danh mục <b>Macro</b> (M1–M16); ở <b>Chế độ thử</b>, bấm phím đó sẽ chạy thử macro trên OLED.<br>
           <b>Lưu ý:</b> với firmware v4, macro được ghi lên thiết bị khi bấm “Lưu vào thiết bị” và có thể gán cho cả phím nhấn lẫn encoder. Firmware v3 cũ không có vùng nhớ macro nên macro chỉ nằm trong app (bản nháp trình duyệt và hồ sơ JSON).
         </div>
+      </section>
+      <section class="view" id="view-morse">
+        <div class="mo-grid">
+          <div class="mo-col">
+            <div class="card"><div class="card-hd"><h2>Ô thử</h2><span class="sub">chạy đúng thuật toán của firmware</span></div><div class="card-bd">
+              <div class="mo-screen" id="moScreen" tabindex="0" aria-label="Màn hình máy tính giả lập, bấm 1 chấm, 2 gạch, 3 xong"><span id="moText"></span><i class="mo-caret"></i><em id="moPh">Bấm vào đây rồi gõ 1 · 2 · 3, hoặc dùng 3 nút bên dưới…</em></div>
+              <div class="mo-state">
+                <div><small>Mã đang gõ</small><b class="mo-code" id="moCode">—</b></div>
+                <div><small>Đang hiện</small><b class="mo-shown" id="moShown">—</b></div>
+                <div class="mo-next"><small>Gõ tiếp được</small><div id="moNext"></div></div>
+              </div>
+              <div class="mo-keys">
+                <button type="button" class="mo-k" id="moDot"><b>•</b><span>Chấm</span><kbd>1</kbd></button>
+                <button type="button" class="mo-k" id="moDash"><b>—</b><span>Gạch</span><kbd>2</kbd></button>
+                <button type="button" class="mo-k ok" id="moOk"><b>✓</b><span>Xong</span><kbd>3</kbd></button>
+              </div>
+              <div class="tool-actions" style="margin-top:12px"><button class="btn sm" id="moSpace">Space</button><button class="btn sm" id="moBs">⌫ Backspace</button><button class="btn sm" id="moEnter">Enter</button><button class="btn sm" id="moCaps">Caps Lock</button><button class="btn sm danger" id="moClear">Xoá hết</button></div>
+              <div class="mo-log" id="moLog" aria-label="Các phím gửi sang máy tính"></div>
+              <p class="hint">Dòng dưới cùng là những gì bàn phím gửi sang máy tính: <b>⌫</b> là Backspace xoá ký tự tạm trước khi hiện ký tự mới. Phím Space / Backspace / Enter cũng chốt ký tự đang gõ, giống firmware.</p>
+            </div></div>
+            <div class="card"><div class="card-hd"><h2>Thử bằng bàn phím thật</h2><span class="sub">cần firmware v6 · layer Morse</span></div><div class="card-bd">
+              <textarea class="mac-in mac-ta" id="moReal" rows="3" style="min-height:0;height:84px" spellcheck="false" placeholder="Chuyển bàn phím sang layer Morse (bấm nút BOOT trên board 3 lần) rồi gõ vào đây…"></textarea>
+            </div></div>
+            <div class="card"><div class="card-hd"><h2>Gán phím</h2><span class="sub" id="moAssignSub"></span></div><div class="card-bd">
+              <div id="moStatus"></div>
+              <div class="mo-pick">
+                <label class="field"><span>Layer</span><select class="mac-in" id="moLayer"></select></label>
+                <label class="field"><span>Chấm</span><select class="mac-in" id="moPD"></select></label>
+                <label class="field"><span>Gạch</span><select class="mac-in" id="moPH"></select></label>
+                <label class="field"><span>Xong</span><select class="mac-in" id="moPO"></select></label>
+              </div>
+              <div class="tool-actions" style="margin-top:12px"><button class="btn primary" id="moApply3">Gán 3 phím này</button><button class="btn" id="moApplyFull">Bố cục Morse đầy đủ → Layer 3</button></div>
+              <p class="hint">«Gán 3 phím này» chỉ đổi 3 vị trí đã chọn trong layer đã chọn. «Bố cục đầy đủ» ghi đè phím của layer 3 (nút encoder và xoay encoder giữ nguyên): hàng dưới <span class="kbd">•</span> chấm · <span class="kbd">—</span> gạch · <span class="kbd">✓</span> xong, cột 4: <span class="kbd">⌫</span> Backspace (hàng 1) · <span class="kbd">↵</span> Enter (hàng 2) · <span class="kbd">␣</span> Space (hàng 3), hàng 2: Caps Lock và giữ Shift, ô đầu hàng 1 = về layer 0. Xong nhớ bấm «Lưu vào thiết bị».</p>
+              <p class="hint"><b>Gán vào phím bất kỳ, layer bất kỳ:</b> tab Bàn phím → chọn phím → nhóm <b>Morse</b> (Chấm / Gạch / Xong). Ba phím có thể nằm ở các layer khác nhau, cũng đặt được vào nút nhấn encoder, Tap dance (bấm / giữ / bấm 2 lần) hoặc kết quả Combo; xoay encoder cũng gõ được chấm / gạch.</p>
+            </div></div>
+          </div>
+          <div class="mo-col">
+            <div class="card"><div class="card-hd"><h2>Bảng mã</h2><span class="sub">bấm một ô để gõ thử</span></div><div class="card-bd" id="moTable"></div></div>
+          </div>
+        </div>
+        <div class="hint-card"><b>Cách gõ:</b> mỗi lần bấm <b>Chấm</b> hoặc <b>Gạch</b>, ký tự tương ứng hiện ngay trên máy tính. Bấm thêm thì ký tự cũ bị xoá (Backspace) và thay bằng ký tự của mã dài hơn — ví dụ <span class="kbd">•</span> → <b>e</b>, <span class="kbd">• •</span> → <b>i</b>, <span class="kbd">• • —</span> → <b>u</b>. Mã chưa có ký tự nào (vd <span class="kbd">• • — —</span>) thì chỉ xoá, gõ tiếp là ra <b>?</b>. Bấm <b>Xong</b> để chốt ký tự và bắt đầu ký tự mới. Chữ in hoa: dùng Caps Lock hoặc giữ Shift. Mã tối đa 7 nét.</div>
       </section>
       <section class="view" id="view-adv">
         <div class="adv-grid">
@@ -1051,7 +1142,7 @@ const CATS = [
   { id: 'basic', name: 'Cơ bản' }, { id: 'letters', name: 'Chữ cái' }, { id: 'digits', name: 'Số' },
   { id: 'nav', name: 'Điều hướng' }, { id: 'fkeys', name: 'Phím F' }, { id: 'mods', name: 'Bổ trợ' },
   { id: 'media', name: 'Media' }, { id: 'layer', name: 'Layer' }, { id: 'led', name: 'Đèn LED' },
-  { id: 'special', name: 'Đặc biệt' }, { id: 'macro', name: 'Macro' }
+  { id: 'special', name: 'Đặc biệt' }, { id: 'macro', name: 'Macro' }, { id: 'morse', name: 'Morse' }
 ];
 const CATNAME = Object.fromEntries(CATS.map(c => [c.id, c.name]));
 const C = [];
@@ -1103,6 +1194,7 @@ for (let i = 0; i < 4; i++) A(TD(i), `TD(${i}) — tap dance ${i}`, 'special', `
 A(0x7020, 'RENAME — đổi tên layer trên OLED', 'special', 'RENAME');
 A(0x7F00, 'BOOTSEL — vào chế độ nạp firmware', 'special', 'BOOT');
 for (let i = 0; i < 16; i++) A(0x7100 + i, `MACRO ${i + 1} — chạy macro ${i + 1}`, 'macro', `M${i + 1}`);
+A(0x7060, 'MORSE Chấm — bấm 1 nét ngắn', 'morse', '•'); A(0x7061, 'MORSE Gạch — bấm 1 nét dài', 'morse', '—'); A(0x7062, 'MORSE Xong — chốt ký tự đang gõ', 'morse', 'OK');
 const KMAP = new Map(C.map(o => [o.c, o]));
 const isMacro = c => (c & 0xFF00) === 0x7100 && (c & 255) < 16;
 const nameOf = c => {
@@ -1120,7 +1212,7 @@ function catClass(c) {
   if (c & 0x8000) return 'media';
   const hi = c & 0xFF00;
   if (hi === 0x4000 || hi === 0x4100 || c === 0x4200 || c === 0x4201) return 'layer';
-  if (hi === 0x5000 || hi === 0x6000 || hi === 0x7100) return 'special';
+  if (hi === 0x5000 || hi === 0x6000 || hi === 0x7100 || (c >= 0x7060 && c <= 0x7062)) return 'special';
   if (c >= 0x7010 && c <= 0x7016) return 'led';
   if ((c >= 0x7001 && c <= 0x7005) || c === 0x7020 || c === 0x7F00) return 'special';
   if (c >= 224 && c <= 231) return 'mod';
@@ -1181,6 +1273,7 @@ function defaults() {
   const nk = [NKK(0), NKK(1), NKK(2), 0x2A, NKK(3), NKK(4), NKK(5), 0x28, NKK(6), NKK(7), NKK(8), 0x2C, NKK(10), NKK(9), 0x7001];
   for (let i = 0; i < 15; i++) w[K(2, POS[i])] = nk[i];
   w[K(2, 4)] = 0x7020;
+  for (let i = 0; i < NK; i++) w[K(3, i)] = MORSE_LAYOUT[i];   // layer 3 = Morse (giống defaults() trong firmware)
   w[ENC(0, 0, 0)] = CONS(0xEA); w[ENC(0, 0, 1)] = CONS(0xE9);
   w[ENC(0, 1, 0)] = CONS(0xB6); w[ENC(0, 1, 1)] = CONS(0xB5);
   w[ENC(0, 2, 0)] = 0x50; w[ENC(0, 2, 1)] = 0x4F;
@@ -1193,7 +1286,7 @@ function defaults() {
   for (let i = 0; i < NOS; i++) w[OSB + i] = OS_DEF[i];
 }
 const nl = () => clamp(w[NLI] | 0 || 1, 1, L);
-const layerLabel = l => names[l] || (l === 0 ? 'BASE' : l === 2 ? 'NOKIA' : 'LAYER' + l);
+const layerLabel = l => names[l] || (l === 0 ? 'BASE' : l === 2 ? 'NOKIA' : hasMorse(l) ? 'MORSE' : 'LAYER' + l);   // giong lname_get() trong firmware
 
 /* ---------- bản nháp / lịch sử ---------- */
 const okLen = n => n === NW || n === NW_OLD || n === NW_OLD2 || n === NW_OLD3;   // hồ sơ cũ vẫn nhập được: hướng OLED lấy mặc định
@@ -1239,6 +1332,7 @@ function renderAll() {
   renderLayers(); renderDevice(); renderInspector(); renderLayerInfo();
   renderAdv(); renderLedModes(); renderLedControls(); renderOled(); renderScreen();
   if (view === 'macro') renderMacro();
+  if (view === 'morse') renderMorse();
   updateDirtyUI(); updateUndo();
 }
 function renderLayers() {
@@ -1459,6 +1553,7 @@ function showView(v) {
   const meta = {
     keymap: ['Bàn phím', 'Gán phím, layer và encoder'],
     macro: ['Macro', 'Ghi và chạy chuỗi phím'],
+    morse: ['Morse', 'Gõ chữ bằng 3 phím: chấm, gạch, xong'],
     adv: ['Nâng cao', 'Tap dance, combo và hành vi đặc biệt'],
     led: ['Đèn LED', 'Hiệu ứng, màu sắc và độ sáng'],
     screen: ['Màn hình', 'Lời chào, screensaver và logo động'],
@@ -1467,6 +1562,7 @@ function showView(v) {
   if (meta) { $('#viewTitle').textContent = meta[0]; $('#viewSub').textContent = meta[1]; }
   if (v === 'adv') renderAdv();
   if (v === 'macro') renderMacro();
+  if (v === 'morse') renderMorse();
   if (v === 'keymap') { renderDevice(); renderInspector(); }
   if (v === 'led') { renderLedModes(); renderLedControls(); }
   if (v === 'screen') renderScreen(); else if (lgPlayT) lgStopPlay();
@@ -2485,6 +2581,7 @@ function bindStaticEvents() {
   $('#ov').addEventListener('click', () => setLedWord(5, w[LDB + 5] ? 0 : 1));
   $('#obMode').addEventListener('change', e => setLedWord(6, +e.target.value));
   bindScreenEvents();
+  bindMorse();
   $('#oledRot').addEventListener('change', e => { setLedWord(ROT_I, +e.target.value & 3); renderLayerInfo(); });
   $('#layerInfo').addEventListener('change', e => { if (e.target.id === 'layerRot') setLayerRot(layer, +e.target.value); });
 
@@ -3019,6 +3116,145 @@ function bindScreenEvents() {
 }
 
 /* ---------- khởi động ---------- */
+// <morse-engine>
+// Thuật toán gõ Morse — PHẢI giống firmware (morse.h). test/run_tests.sh nạp đúng đoạn này và so với bản C trên chuỗi sự kiện ngẫu nhiên.
+const MORSE_MAX = 7;
+const MORSE_TAB = [   // [ký tự, mã] — cùng thứ tự với MORSE_TAB trong morse.h
+  ["a", ".-"], ["b", "-..."], ["c", "-.-."], ["d", "-.."], ["e", "."], ["f", "..-."], ["g", "--."], ["h", "...."], ["i", ".."],
+  ["j", ".---"], ["k", "-.-"], ["l", ".-.."], ["m", "--"], ["n", "-."], ["o", "---"], ["p", ".--."], ["q", "--.-"], ["r", ".-."],
+  ["s", "..."], ["t", "-"], ["u", "..-"], ["v", "...-"], ["w", ".--"], ["x", "-..-"], ["y", "-.--"], ["z", "--.."], ["0", "-----"],
+  ["1", ".----"], ["2", "..---"], ["3", "...--"], ["4", "....-"], ["5", "....."], ["6", "-...."], ["7", "--..."], ["8", "---.."], ["9", "----."],
+  [".", ".-.-.-"], [",", "--..--"], ["?", "..--.."], ["'", ".----."], ["!", "-.-.--"], ["/", "-..-."], ["(", "-.--."], [")", "-.--.-"], ["&", ".-..."],
+  [":", "---..."], [";", "-.-.-."], ["=", "-...-"], ["+", ".-.-."], ["-", "-....-"], ["_", "..--.-"], ["\"", ".-..-."], ["$", "...-..-"], ["@", ".--.-."]
+];
+const KC_MORSE = { dot: 0x7060, dash: 0x7061, ok: 0x7062 };
+// Bố cục layer 3 mặc định (giống mo[] trong defaults() của main.c): 20 vị trí = hàng × 5 cột (cột 5 = nút nhấn encoder, giữ trong suốt)
+// Hàng 1: TL(0) về layer 0 · · · Backspace | Hàng 2: Caps · giữ Shift · · Enter | Hàng 3: · · · Space | Hàng 4: Chấm · Gạch · Xong
+const MORSE_LAYOUT = [TL(0), 0, 0, 0x2A, 1, 0x39, 0x7003, 0, 0x28, 1, 0, 0, 0, 0x2C, 1, KC_MORSE.dot, KC_MORSE.dash, KC_MORSE.ok, 0, 0];
+const morseFind = code => { for (const t of MORSE_TAB) if (t[1] === code) return t[0]; return ''; };
+const morseNew = () => ({ code: '', shown: false });
+const morseCommit = m => { m.code = ''; m.shown = false; };
+// io = { room(), bs(), put(ch) }. Trả 1 nếu nhận, 0 nếu bỏ qua (mã đã dài 7 hoặc hàng đợi phím hết chỗ) — khi bỏ qua trạng thái không đổi.
+function morsePress(m, dash, io) {
+  if (m.code.length >= MORSE_MAX) return 0;
+  const nc = m.code + (dash ? '-' : '.'), ch = morseFind(nc), need = (m.shown ? 1 : 0) + (ch ? 1 : 0);
+  if (io.room() < need) return 0;
+  if (m.shown) io.bs();
+  if (ch) io.put(ch);
+  m.code = nc; m.shown = !!ch; return 1;
+}
+// </morse-engine>
+const hasMorse = l => { for (let p = 0; p < NK; p++) { const c = w[K(l, p)]; if (c >= KC_MORSE.dot && c <= KC_MORSE.ok) return true; } return false; };
+// ----- Morse -----
+const MO_GROUPS = [['Chữ cái', c => /[a-z]/.test(c)], ['Chữ số', c => /[0-9]/.test(c)], ['Dấu câu', c => !/[a-z0-9]/.test(c)]];
+const mo = { m: morseNew(), text: '', caps: false, log: [] };
+const moIO = {
+  room: () => 99,
+  bs() { mo.text = mo.text.slice(0, -1); mo.log.push('⌫'); },
+  put(ch) { mo.text += mo.caps && /[a-z]/.test(ch) ? ch.toUpperCase() : ch; mo.log.push(ch); }
+};
+const glyph = code => '<span class="mo-g">' + [...code].map(c => '<i class="' + (c === '.' ? 'd' : 'h') + '"></i>').join('') + '</span>';
+function moEvent(ev) {
+  if (ev === 'dot' || ev === 'dash') moPressOne(ev === 'dash');
+  else if (ev === 'ok') morseCommit(mo.m);
+  else if (ev === 'space') { morseCommit(mo.m); mo.text += ' '; mo.log.push('␣'); }
+  else if (ev === 'enter') { morseCommit(mo.m); mo.text += '\n'; mo.log.push('↵'); }
+  else if (ev === 'bs') { morseCommit(mo.m); mo.text = mo.text.slice(0, -1); mo.log.push('⌫'); }
+  else if (ev === 'clear') { morseCommit(mo.m); mo.text = ''; mo.log = []; }
+  if (mo.log.length > 16) mo.log = mo.log.slice(-16);
+  renderMorseSim();
+}
+function moPressOne(dash) { morsePress(mo.m, dash, moIO); }
+function renderMorseSim() {
+  const code = mo.m.code, cur = mo.m.shown ? morseFind(code) : '';
+  $('#moText').textContent = mo.text; $('#moScreen').classList.toggle('has', !!mo.text || !!code);
+  $('#moCode').innerHTML = code ? esc([...code].map(c => c === '.' ? '•' : '—').join(' ')) : '—';
+  $('#moShown').textContent = cur || (code ? '∅' : '—');
+  const nx = [];
+  if (code.length < MORSE_MAX) for (const x of ['.', '-']) {
+    const nc = code + x, ch = morseFind(nc), more = MORSE_TAB.some(t => t[1].length > nc.length && t[1].startsWith(nc));
+    if (ch || more) nx.push('<span class="mo-chip">' + (x === '.' ? '•' : '—') + ' → ' + (ch ? esc(ch) : '…') + (ch && more ? ' …' : '') + '</span>');
+  }
+  $('#moNext').innerHTML = nx.join('') || '<span class="hint" style="margin:0">bấm Xong để chốt</span>';
+  $('#moLog').innerHTML = mo.log.map(c => '<i class="' + (c === '⌫' ? 'bs' : '') + '">' + esc(c) + '</i>').join('');
+  $('#moCaps').classList.toggle('active', mo.caps);
+  $$('#moTable .mo-cell').forEach(b => { const c = b.dataset.code; b.classList.toggle('hit', !!code && c.startsWith(code)); b.classList.toggle('exact', !!code && c === code); });
+}
+function renderMorseTable() {
+  $('#moTable').innerHTML = MO_GROUPS.map(g => '<div class="mo-sec">' + g[0] + '</div><div class="mo-tab">' + MORSE_TAB.filter(t => g[1](t[0])).map(t => '<button type="button" class="mo-cell" data-code="' + t[1] + '" title="' + esc(t[1].replace(/\./g, '•').replace(/-/g, '—')) + '"><b>' + esc(t[0]) + '</b>' + glyph(t[1]) + '</button>').join('') + '</div>').join('');
+}
+function moTypeCode(code) { morseCommit(mo.m); for (const c of code) moPressOne(c === '-'); renderMorseSim(); }
+const MO_PN = p => POS.includes(p) ? 'Hàng ' + (Math.floor(p / 5) + 1) + ' · Cột ' + (p % 5 + 1) : [4, 9, 14].includes(p) ? 'Nhấn encoder ' + (p / 5 + 1 | 0) : 'Vị trí ' + p;
+const MO_PICK = [...POS, 4, 9, 14].sort((a, b) => a - b);
+function morseAssignInfo() {   // layer nào đang có phím Morse, đủ 3 phím chưa
+  const out = []; if (!dev) return out;
+  for (let l = 0; l < nl(); l++) {
+    const f = { dot: [], dash: [], ok: [] };
+    for (let p = 0; p < NK; p++) { const c = w[K(l, p)]; for (const k in f) if (c === KC_MORSE[k]) f[k].push(p); }
+    if (f.dot.length + f.dash.length + f.ok.length) out.push({ l, f, full: f.dot.length && f.dash.length && f.ok.length });
+  }
+  return out;
+}
+function renderMorse() {
+  const st = $('#moStatus'), info_ = morseAssignInfo();
+  const nm = a => a.length ? a.map(MO_PN).join(', ') : '<b style="color:var(--danger)">thiếu</b>';
+  let h = '';
+  if (!dev) h = '<div class="row"><span class="pill-s">Chưa kết nối</span>Kết nối bàn phím (USB) để gán phím. Ô thử và bảng mã dùng được ngay; bản nháp vẫn sửa offline được.</div>';
+  else {
+    if (devInfo && devInfo.ver < 6) h += '<div class="row"><span class="pill-s warn">Firmware v' + devInfo.ver + '</span>chưa có chế độ Morse — hãy nạp firmware v6 trở lên.</div>';
+    h += info_.length ? info_.map(x => '<div class="row"><span class="pill-s ' + (x.full ? 'ok' : 'warn') + '">Layer ' + x.l + '</span>Chấm: ' + nm(x.f.dot) + ' · Gạch: ' + nm(x.f.dash) + ' · Xong: ' + nm(x.f.ok) + '</div>').join('') : '<div class="row"><span class="pill-s warn">Chưa gán</span>Chưa có layer nào dùng phím Morse. Bấm «Bố cục Morse đầy đủ» hoặc chọn 3 phím rồi «Gán».</div>';
+  }
+  st.className = 'mo-status'; st.innerHTML = h;
+  $('#moAssignSub').textContent = dev ? (info_.some(x => x.full) ? 'đã gán' : 'chưa gán') : '';
+  const keep = { l: $('#moLayer').value, d: $('#moPD').value, h: $('#moPH').value, o: $('#moPO').value };
+  const lo = []; for (let l = 0; l < nl(); l++) lo.push('<option value="' + l + '">Layer ' + l + ' · ' + esc(layerLabel(l)) + '</option>');
+  if (nl() < L) lo.push('<option value="new">+ Layer mới (' + nl() + ')</option>');
+  $('#moLayer').innerHTML = lo.join('');
+  const po = i => MO_PICK.map(p => '<option value="' + p + '"' + (p === i ? ' selected' : '') + '>' + esc(MO_PN(p)) + '</option>').join('');
+  $('#moPD').innerHTML = po(15); $('#moPH').innerHTML = po(16); $('#moPO').innerHTML = po(17);
+  const pref = info_.find(x => x.full), want = keep.l !== '' && [...$('#moLayer').options].some(o => o.value === keep.l) ? keep.l : pref ? String(pref.l) : (nl() > 3 ? '3' : 'new');
+  if ([...$('#moLayer').options].some(o => o.value === want)) $('#moLayer').value = want;
+  if (keep.d !== '') { $('#moPD').value = keep.d; $('#moPH').value = keep.h; $('#moPO').value = keep.o; }
+  else if (pref) { $('#moPD').value = pref.f.dot[0]; $('#moPH').value = pref.f.dash[0]; $('#moPO').value = pref.f.ok[0]; }
+}
+function moEnsureLayers(n) {
+  while (nl() < n && nl() < L) { const l = nl(); for (let i = 0; i < NK; i++) w[K(l, i)] = 1; for (let e = 0; e < 3; e++) for (let d = 0; d < 2; d++) w[ENC(l, e, d)] = 1; names[l] = ''; w[NLI] = l + 1; }
+}
+function moDone(msg) {   // ghi bản nháp + lịch sử + thiết bị (nếu đang kết nối)
+  markDirty(); commit(); renderAll();
+  if (dev) writeAll().catch(e => toast('Lỗi ghi: ' + e.message, 'err'));
+  toast(msg, 'ok', 4000);
+}
+function moApply3() {
+  const v = $('#moLayer').value, d = +$('#moPD').value, h = +$('#moPH').value, o = +$('#moPO').value;
+  if (new Set([d, h, o]).size < 3) { toast('Ba phím phải khác nhau', 'warn'); return; }
+  let l; if (v === 'new') { moEnsureLayers(nl() + 1); l = nl() - 1; } else l = +v;
+  for (let p = 0; p < NK; p++) { const c = w[K(l, p)]; if (c >= KC_MORSE.dot && c <= KC_MORSE.ok) w[K(l, p)] = 0; }
+  w[K(l, d)] = KC_MORSE.dot; w[K(l, h)] = KC_MORSE.dash; w[K(l, o)] = KC_MORSE.ok;
+  moDone('Đã gán Chấm/Gạch/Xong vào layer ' + l + (dev ? '' : ' (nhớ kết nối rồi «Lưu vào thiết bị»)'));
+}
+async function moApplyFull() {
+  if (!await ask({ title: 'Ghi bố cục Morse vào Layer 3?', msg: 'Toàn bộ phím của layer 3 sẽ bị thay bằng bố cục Morse mặc định (xoay và nhấn encoder giữ nguyên).', ok: 'Ghi đè' })) return;
+  moEnsureLayers(4); for (let i = 0; i < NK; i++) w[K(3, i)] = MORSE_LAYOUT[i];
+  moDone('Đã ghi layer 3 = Morse. Nhớ bấm «Lưu vào thiết bị»');
+}
+function bindMorse() {
+  renderMorseTable(); renderMorseSim();
+  const press = (id, ev) => { const b = $(id); b.onclick = () => { moEvent(ev); $('#moScreen').focus(); }; };
+  press('#moDot', 'dot'); press('#moDash', 'dash'); press('#moOk', 'ok'); press('#moSpace', 'space'); press('#moBs', 'bs'); press('#moEnter', 'enter'); press('#moClear', 'clear');
+  $('#moCaps').onclick = () => { mo.caps = !mo.caps; renderMorseSim(); };
+  $('#moTable').onclick = e => { const b = e.target.closest('.mo-cell'); if (b) moTypeCode(b.dataset.code); };
+  const map = { '1': 'dot', '.': 'dot', '2': 'dash', '-': 'dash', '3': 'ok', ' ': 'space', Enter: 'enter', Backspace: 'bs' };
+  $('#moScreen').addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const ev = map[e.key]; if (!ev) return; e.preventDefault();
+    const b = { dot: '#moDot', dash: '#moDash', ok: '#moOk' }[ev];
+    if (b) { $(b).classList.add('press'); setTimeout(() => $(b).classList.remove('press'), 110); }
+    moEvent(ev);
+  });
+  $('#moApply3').onclick = moApply3; $('#moApplyFull').onclick = moApplyFull;
+}
+
 async function init() {
   let t = 'dark';
   try { t = localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) { }

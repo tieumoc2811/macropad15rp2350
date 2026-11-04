@@ -48,7 +48,9 @@ enum { LD_MODE, LD_SPEED, LD_BRIGHT, LD_HUE, LD_SAT, LD_OVER, LD_OBMODE, LD_OBBR
 #define KC_MORSE_DOT 0x7060   // Morse: phim cham
 #define KC_MORSE_DASH 0x7061  // Morse: phim gach
 #define KC_MORSE_OK 0x7062    // Morse: xong 1 ky tu (chot ky tu)
-#define IS_MORSE(k) ((k) >= KC_MORSE_DOT && (k) <= KC_MORSE_OK)
+#define KC_MORSE_HINT 0x7063  // Morse: bat / tat goi y tren van ban (" [.i -a]" sau ky tu dang go)
+#define MORSE_HINT_DEF 1      // goi y mac dinh luc cam USB: 1 = bat, 0 = tat (khong luu flash; doi bang phim Morse "Goi y")
+#define IS_MORSE(k) ((k) >= KC_MORSE_DOT && (k) <= KC_MORSE_HINT)
 #define KC_LEDFX 0x7010      // 0x7010 che do LED +, 0x7011 che do -, 0x7012/13 sang +/-, 0x7014/15 toc do +/-, 0x7016 doi mau (chi doi tam, bam "Luu" trong app de giu)
 #define KC_LEDFX_LAST 0x7016
 #define KC_BOOT 0x7F00
@@ -74,7 +76,7 @@ enum { LD_MODE, LD_SPEED, LD_BRIGHT, LD_HUE, LD_SAT, LD_OVER, LD_OBMODE, LD_OBBR
 #define MAC_OFF (FLASH_OFF - MAC_SZ)
 #define MAC_MAGIC 0x3143414Du
 #define MH 8                 // so phim macro co the giu cung luc
-#define FW_VER 6             // giao thuc: 5 = them loi chao / screensaver / logo dong cho OLED, 6 = go Morse 3 phim (0x7060..0x7062)
+#define FW_VER 7             // giao thuc: 5 = them loi chao / screensaver / logo dong cho OLED, 6 = go Morse 3 phim (0x7060..0x7062), 7 = them phim Morse "Goi y" (0x7063)
 #define KC_RENAME 0x7020     // doi ten layer dang hien (go bang phim Nokia)
 _Static_assert(sizeof(uint32_t) + 2 * NW <= NAME_OFF, "cfg qua lon");
 #define FLASH_OFF (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
@@ -115,12 +117,12 @@ static void defaults(void) {
   static const uint16_t nk[15] = {NKK(0), NKK(1), NKK(2), 0x2A, NKK(3), NKK(4), NKK(5), 0x28, NKK(6), NKK(7), NKK(8), 0x2C, NKK(10), NKK(9), KC_LATCH};
   for (int i = 0; i < 15; i++) KM(2, pos[i]) = nk[i];
   KM(2, 4) = KC_RENAME;   // layer Nokia: nut E1 = doi ten layer
-  // layer 3: Morse. Hang duoi: Cham / Gach / Xong. Phim khac cua layer bi chan (0) de khong go nham; nut encoder (4, 9, 14) va encoder giu nguyen (TRNS)
+  // layer 3: Morse. Hang duoi: Cham / Gach / Xong / Goi y (bat-tat). Phim khac cua layer bi chan (0) de khong go nham; nut encoder (4, 9, 14) va encoder giu nguyen (TRNS)
   static const uint16_t mo[NK] = {
     TL(0), 0, 0, 0x2A, KC_TRNS,          // TL(0) = ve layer 0, Backspace
     0x39, 0x7003, 0, 0x28, KC_TRNS,      // Caps Lock, giu Shift, Enter
     0, 0, 0, 0x2C, KC_TRNS,              // Space
-    KC_MORSE_DOT, KC_MORSE_DASH, KC_MORSE_OK, 0, 0 };
+    KC_MORSE_DOT, KC_MORSE_DASH, KC_MORSE_OK, KC_MORSE_HINT, 0 };
   for (int i = 0; i < NK; i++) KM(3, i) = mo[i];
   EN(0, 0, 0) = CONS(0xEA); EN(0, 0, 1) = CONS(0xE9);
   EN(0, 1, 0) = CONS(0xB6); EN(0, 1, 1) = CONS(0xB5);
@@ -150,7 +152,8 @@ static void do_save(void *p) {   // p == NULL: luu cfg + ten (app); p != NULL: c
 
 static uint32_t layers, tl;
 static int nl(void) { uint16_t v = cfg.w[NLI]; return v < 1 ? 1 : v > L ? L : v; }
-static uint16_t pressed[NK], tap, q[16], lat; static uint8_t qh, qt, tap_phase, tg;
+#define QN 64                                 // hang doi phim: moi lan bam Morse co goi y can toi ~26 phim (xoa + ky tu + goi y + cho de xoa goi y luc chot)
+static uint16_t pressed[NK], tap, q[QN], lat, mgh[NK]; static uint8_t qh, qt, tap_phase, tg, mgate;   // mgate: dang xoa goi y Morse -> giu phim thuong lai cho den khi xoa xong (mgh = phim dang bi giu lai)
 static bool dirty, latch_wait, odirty;
 static bool rn_active, nsave_req;                 // dang doi ten layer / can luu ten vao flash
 static uint32_t act_ms;                            // thoi diem co thao tac phim / encoder gan nhat (danh thuc man hinh)
@@ -158,12 +161,13 @@ static uint32_t pseq[NK + 5], sq, ot;             // thu tu bam (phim dang de: p
 static void oled_forget(void);
 static void rename_start(void);
 static morse_t mrs;   // trang thai go Morse
-static void qpush_raw(uint16_t k) { if ((uint8_t)(qh - qt) < 16) q[qh++ & 15] = k; }
+static void qpush_raw(uint16_t k) { if ((uint8_t)(qh - qt) < QN) q[qh++ & (QN - 1)] = k; }
 static void morse_key(uint16_t kc);
+static void mcommit(void);
 // Phim ra tu tap dance / combo / encoder / Nokia: Morse duoc THUC HIEN (khong gui xuong may tinh nhu phim HID); moi phim khac chot ky tu Morse dang go
 static void qpush(uint16_t k) {
   if (IS_MORSE(k)) { morse_key(k); return; }
-  morse_commit(&mrs); qpush_raw(k);
+  mcommit(); qpush_raw(k);
 }
 
 static uint16_t res_key(int p) { for (int l = nl() - 1; l >= 0; l--) if (l == 0 || (layers >> l & 1)) { uint16_t k = KM(l, p); if (k != KC_TRNS) return k; } return 0; }
@@ -462,7 +466,7 @@ static const struct { uint16_t k; const char *n; } NAMES[] = {
   {0x37, "."}, {0x36, ","}, {0x38, "/"}, {0x2D, "-"}, {0x2E, "="}, {0x54, "/"}, {0x55, "*"}, {0x56, "-"}, {0x57, "+"}, {0x63, "."}, {0x62, "0"},
   {0xE0, "CTRL"}, {0xE4, "CTRL"}, {0xE1, "SHIFT"}, {0xE5, "SHIFT"}, {0xE2, "ALT"}, {0xE6, "ALT"}, {0xE3, "GUI"}, {0xE7, "GUI"},
   {CONS(0xE2), "MUTE"}, {CONS(0xE9), "VOL +"}, {CONS(0xEA), "VOL -"}, {CONS(0xCD), "PLAY"}, {CONS(0xB5), "NEXT"}, {CONS(0xB6), "PREV"}, {CONS(0x192), "CALC"},
-  {KC_BOOT, "BOOT"}, {KC_LATCH, "LATCH"}, {KC_RENAME, "RENAME"}, {KC_MORSE_DOT, "DOT"}, {KC_MORSE_DASH, "DASH"}, {KC_MORSE_OK, "OK"}};
+  {KC_BOOT, "BOOT"}, {KC_LATCH, "LATCH"}, {KC_RENAME, "RENAME"}, {KC_MORSE_DOT, "DOT"}, {KC_MORSE_DASH, "DASH"}, {KC_MORSE_OK, "OK"}, {KC_MORSE_HINT, "HINT"}};
 static void kcname(uint16_t k, char *o) {   // o >= 8 byte
   o[0] = 0;
   if ((k & 0xF000) == 0x2000 && (k & 0xFF)) { char sub[8]; kcname(k & 0xFF, sub); o[0] = 'S'; o[1] = '+'; strncpy(o + 2, sub, 5); o[7] = 0; return; }
@@ -554,7 +558,7 @@ static void td_release(int p) {
 static void td_task(uint32_t now) {
   if (tds == 1 && now - tdt >= TAP_TERM) {
     uint16_t hk = TDW(tdn, 1);
-    if (IS_MORSE(hk)) morse_key(hk); else { morse_commit(&mrs); pressed[tdp] = hk; pseq[tdp] = ++sq; }
+    if (IS_MORSE(hk)) morse_key(hk); else { mcommit(); pressed[tdp] = hk; pseq[tdp] = ++sq; }
     tds = 2; relayer(); dirty = true;
   }
   else if (tds == 3 && now - tdt >= TAP_TERM) { qpush(TDW(tdn, 0)); tds = 0; }
@@ -612,11 +616,13 @@ static uint16_t mc_ascii(uint8_t ch) {
 // ---- Morse: 3 phim (cham / gach / xong), ky tu hien thoi gian thuc tren may tinh (logic trong morse.h) ----
 static void mq_bs(void) { qpush_raw(0x2A); }                                              // Backspace xoa ky tu tam
 static void mq_put(char c) { uint16_t k = mc_ascii((uint8_t)c); if (k) qpush_raw(k); }    // ky tu moi (Shift neu can: ? ! @ ...)
-static uint8_t mq_room(void) { return 16 - (uint8_t)(qh - qt); }
+static uint8_t mq_room(void) { return QN - (uint8_t)(qh - qt); }
 static const morse_io MQIO = { mq_bs, mq_put, mq_room };
+static void mcommit(void) { if (mrs.hint) mgate = 1; morse_commit_io(&mrs, &MQIO); }   // chot: xoa goi y khoi van ban (phim thuong cho sau BS nho mgate)
 static void morse_key(uint16_t kc) {
   static uint8_t seq; char s[8]; uint16_t nk;
-  if (kc == KC_MORSE_OK) { morse_commit(&mrs); note(KC_MORSE_OK, "OK"); return; }
+  if (kc == KC_MORSE_HINT) { uint8_t on = !morse_hint_on; if (morse_set_hint(&mrs, on, &MQIO)) note(KC_MORSE_HINT, on ? "HINT ON" : "HINT OFF"); else note(0x7070 + (seq++ & 15), "FULL"); return; }
+  if (kc == KC_MORSE_OK) { mcommit(); note(KC_MORSE_OK, "OK"); return; }
   if (!morse_press(&mrs, kc == KC_MORSE_DASH, &MQIO)) { note(0x7070 + (seq++ & 15), "FULL"); return; }
   char ch = mrs.shown ? morse_find(mrs.code) : 0; int n = 0;   // OLED: "E ." (ky tu + ma), ma dai thi chi hien ma
   if (ch && mrs.len <= 5) { s[n++] = ch >= 'a' && ch <= 'z' ? ch - 32 : ch; s[n++] = ' '; }
@@ -625,7 +631,7 @@ static void morse_key(uint16_t kc) {
   note(nk, s);
 }
 static void mc_start(int id) {
-  morse_commit(&mrs);   // macro tu go chu: khong de phim Morse ke tiep xoa nham ky tu cua macro
+  mcommit();   // macro tu go chu: khong de phim Morse ke tiep xoa nham ky tu cua macro
   if (mc_id >= 0) { mc_stop(); note(0x7100 + id, "STOP"); return; }   // bam them 1 phim macro khi dang chay = dung
   const uint8_t *m = mslot(id); uint16_t n = m[16] | m[17] << 8;
   char nm[8]; if (m[3]) { memcpy(nm, m + 4, 7); nm[m[3] < 7 ? m[3] : 7] = 0; } else { nm[0] = 'M'; putnum(nm + 1, id + 1); }
@@ -665,7 +671,7 @@ static void mc_task(uint32_t now) {
 static void fire(int p, uint16_t kc) {
   if (!kc || kc == KC_TRNS) return;
   if (IS_MORSE(kc)) { if (!latch_wait) morse_key(kc); return; }
-  if ((kc & 0xF000) != 0x5000) morse_commit(&mrs);   // phim khac bam giua chung: chot ky tu Morse dang go (tap dance tu chot o dau ra cua no)
+  if ((kc & 0xF000) != 0x5000) mcommit();   // phim khac bam giua chung: chot ky tu Morse dang go (tap dance tu chot o dau ra cua no)
   if (kc == KC_LATCH) { if (lat) { lat = 0; ot = ms(); } else latch_wait = !latch_wait; odirty = dirty = true; return; }
   if (kc > KC_LATCH && kc <= KC_LATCH + 4) {
     static const uint16_t tgk2[4] = {0x2C, 0xE1, 0xE0, 0xE2}; int b = kc - KC_LATCH - 1; tg ^= 1 << b; dirty = odirty = true; ot = ms();
@@ -745,11 +751,14 @@ static void hid_task(void) {
   static const uint8_t tgk[4] = {0x2C, 0xE1, 0xE0, 0xE2};
   static uint8_t lm, lk[6]; static uint16_t lc;
   if (!tud_hid_n_ready(0)) return;
+  if (mgate) for (int i = 0; i < NK; i++) if (mgh[i] && pressed[i] != mgh[i]) { qpush_raw(mgh[i]); mgh[i] = 0; }   // phim nha truoc khi xoa xong goi y: gui nhu 1 lan bam (sau cac Backspace), khong de mat phim
   if (tap_phase == 2) { tap = 0; tap_phase = 0; dirty = true; }
-  else if (tap_phase == 0 && qh != qt) { tap = q[qt++ & 15]; tap_phase = 1; dirty = true; }
+  else if (tap_phase == 0 && qh != qt) { tap = q[qt++ & (QN - 1)]; tap_phase = 1; dirty = true; }
+  if (mgate && qh == qt && !tap) { mgate = 0; memset(mgh, 0, sizeof mgh); dirty = true; }   // da xoa het goi y -> tha cac phim dang giu
   if (!dirty) return;
   uint8_t mod = 0, k[6] = {0}; int n = 0; uint16_t cons = 0;
   for (int i = 0; i < NK + 6 + MH; i++) {
+    if (mgate && i < NK) { if (pressed[i]) mgh[i] = pressed[i]; continue; }   // phim thuong dang giu phai ra SAU khi xoa goi y (Backspace trong hang doi), neu khong se xoa nham chu cua phim do
     uint16_t c = i < NK ? pressed[i] : i == NK ? tap : i == NK + 1 ? lat : i < NK + 6 ? ((tg >> (i - NK - 2) & 1) ? tgk[i - NK - 2] : 0) : mc_held[i - NK - 6];
     if (c & 0x8000) { cons = c & 0x7FFF; continue; }
     if ((c & 0xF000) == 0x2000) { mod |= 2; c &= 0xFF; } else if (c >= 0x100) continue;
@@ -1049,6 +1058,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t id, hid_report_type_t t, uint8_t
 uint16_t tud_hid_get_report_cb(uint8_t i, uint8_t id, hid_report_type_t t, uint8_t *b, uint16_t n) { (void)i; (void)id; (void)t; (void)b; (void)n; return 0; }
 
 int main(void) {
+  morse_hint_on = MORSE_HINT_DEF;
   load(); mac_load(); od_load();
   for (int r = 0; r < 4; r++) { gpio_init(rows[r]); gpio_set_dir(rows[r], GPIO_OUT); gpio_put(rows[r], 0); }
   for (int c = 0; c < 5; c++) { gpio_init(cols[c]); gpio_set_dir(cols[c], GPIO_IN); gpio_pull_down(cols[c]); }

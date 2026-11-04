@@ -47,11 +47,12 @@ static void release2(int p, int settle) { fake_ms += 10; down &= ~(1u << p); app
 #define press(p) press2(p, 1)
 #define release(p) release2(p, 1)
 static void tapk(int p) { press(p); release(p); }
-enum { P_DOT = 15, P_DASH = 16, P_OK = 17, P_BS = 3, P_ENT = 8, P_SPC = 13, P_CAPS = 5, P_SHIFT = 6, P_ESC = 0 };
+enum { P_DOT = 15, P_DASH = 16, P_OK = 17, P_HINT = 18, P_BS = 3, P_ENT = 8, P_SPC = 13, P_CAPS = 5, P_SHIFT = 6, P_ESC = 0 };
 static void morse(const char *code, int ok) { for (; *code; code++) tapk(*code == '-' ? P_DASH : P_DOT); if (ok) tapk(P_OK); }
 static void expect(const char *want, const char *what) { CHECK(!strcmp(host, want), "%s: may tinh co '%s', mong '%s'", what, host, want); }
 static void to_morse_layer(void) { for (int i = 0; i < 3; i++) { cycle_layer(1); pump(5); } }   // nut BOOT tren board: L0 -> L1 -> L2 -> L3
-static void reset_all(void) { hn = 0; host[0] = 0; memset(prevk, 0, 6); usb_up = true; down = 0; tl = 0; memset(pressed, 0, sizeof pressed); defaults(); relayer(); morse_commit(&mrs); qh = qt = 0; tap = 0; tap_phase = 0; caps = false; tds = 0; pend = -1; tg = 0; latch_wait = false; lat = 0; pump(20); }
+static void tapH(int p) { press2(p, 0); pump(3); release2(p, 0); pump(400); }   // bam NGAN (nha khi goi y chua xoa xong) roi cho hang doi xa het   // bam roi cho hang doi xa het (goi y: moi lan bam ~20 phim ao)
+static void reset_all(void) { morse_hint_on = 0; hn = 0; host[0] = 0; memset(prevk, 0, 6); usb_up = true; down = 0; tl = 0; memset(pressed, 0, sizeof pressed); defaults(); relayer(); morse_commit(&mrs); qh = qt = 0; tap = 0; tap_phase = 0; caps = false; tds = 0; pend = -1; tg = 0; latch_wait = false; lat = 0; pump(20); }
 
 int main(void) {
   reset_all();
@@ -126,6 +127,36 @@ int main(void) {
   reset_all(); KM(0, 1) = KC_MORSE_DOT; tapk(1); mc_start(0); morse_commit(&mrs); tapk(1); CHECK(mrs.len == 1, "sau macro cham moi la ky tu moi");
   // doi layer giua chung: phim layer chot
   reset_all(); to_morse_layer(); tapk(P_DOT); cycle_layer(1); relayer(); tapk(P_DOT); CHECK(mrs.len == 1 || mrs.len == 0, "doi layer khong lam hong trang thai");
+
+  // ---------- GOI Y tren van ban (" [.i -a]") ----------
+  reset_all(); CHECK(KM(3, 18) == KC_MORSE_HINT && IS_MORSE(KC_MORSE_HINT), "layer 3 mac dinh co phim Goi y o vi tri 18"); CHECK(MORSE_HINT_DEF == 1, "mac dinh goi y bat");
+  morse_hint_on = 1; to_morse_layer();
+  tapH(P_DOT); expect("e [.i -a]", "goi y: 1 cham");
+  tapH(P_DOT); expect("i [.s -u]", "goi y: 2 cham");
+  tapH(P_DASH); expect("u [.f]", "goi y: ..-");
+  tapH(P_OK); expect("u", "Xong chi xoa goi y");
+  tapH(P_SPC); expect("u ", "Space");
+  tapH(P_DOT); expect("u e [.i -a]", "ky tu moi co goi y");
+  tapH(P_SPC); expect("u e ", "Space chot: goi y bi xoa TRUOC, roi moi ra dau cach");
+  tapH(P_DOT); tapH(P_DASH); expect("u e a [.r -w]", ".-");
+  tapH(P_BS); expect("u e ", "Backspace chot: xoa goi y roi xoa 'a' (khong xoa nham goi y)");
+  tapH(P_DOT); tapH(P_ENT); expect("u e e\n", "Enter chot");
+  // giu phim thuong (khong tha ngay): van ra SAU khi xoa goi y
+  tapH(P_DOT); press2(P_SPC, 0); pump(400); release2(P_SPC, 0); pump(60); expect("u e e\ne ", "giu Space trong luc con goi y");
+  // bam rat ngan roi nha ngay (truoc khi goi y xoa xong): phim van phai ra, khong mat, khong xoa nham
+  reset_all(); morse_hint_on = 1; to_morse_layer(); tapH(P_DOT); press2(P_SPC, 0); pump(1); release2(P_SPC, 0); pump(400); expect("e ", "Space bam ngan luc con goi y");
+  tapH(P_DOT); press2(P_BS, 0); pump(1); release2(P_BS, 0); pump(400); expect("e ", "Backspace bam ngan: xoa 'e' moi, khong xoa nham goi y");
+  // bat / tat bang phim Goi y
+  reset_all(); morse_hint_on = 1; to_morse_layer();
+  tapH(P_DOT); expect("e [.i -a]", "truoc khi tat"); tapH(P_HINT); expect("e", "phim Goi y: tat -> xoa goi y"); CHECK(!morse_hint_on, "co tat");
+  tapH(P_DOT); expect("i", "tat: chi con ky tu, khong goi y"); tapH(P_HINT); expect("i [.s -u]", "phim Goi y: bat lai giua chung"); CHECK(morse_hint_on, "co bat");
+  tapH(P_OK); expect("i", "Xong"); tapH(P_SPC); expect("i ", "Space");
+  // tat goi y: hanh vi cu giu nguyen (khong goi y, Space khong can cho)
+  reset_all(); to_morse_layer(); tapk(P_DOT); tapk(P_DOT); tapk(P_SPC); expect("i ", "goi y tat: nhu cu");
+  // bam rat nhanh (nguoi that bam cach nhau ~80 ms ~ 25 phim ao da xa): khong lech
+  reset_all(); morse_hint_on = 1; to_morse_layer();
+  for (int r = 0; r < 12; r++) { for (const char *c = "...-..-"; *c; c++) { int p = *c == '-' ? P_DASH : P_DOT; press2(p, 0); release2(p, 0); pump(120); } tapH(P_OK); }
+  { char w[32] = {0}; for (int i = 0; i < 12; i++) w[i] = '$'; expect(w, "goi y bat: bam nhanh 12 lan $ (so luc bam day hang doi se hien FULL, khong lech)"); }
 
   printf("%d kiem tra end-to-end, %d loi\n", checks, fails);
   return fails ? 1 : 0;

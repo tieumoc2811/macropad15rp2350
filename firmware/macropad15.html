@@ -862,9 +862,9 @@ small.mut{font-size:10px;color:var(--muted)}
                 <button type="button" class="mo-k" id="moDash"><b>—</b><span>Gạch</span><kbd>2</kbd></button>
                 <button type="button" class="mo-k ok" id="moOk"><b>✓</b><span>Xong</span><kbd>3</kbd></button>
               </div>
-              <div class="tool-actions" style="margin-top:12px"><button class="btn sm" id="moSpace">Space</button><button class="btn sm" id="moBs">⌫ Backspace</button><button class="btn sm" id="moEnter">Enter</button><button class="btn sm" id="moCaps">Caps Lock</button><button class="btn sm danger" id="moClear">Xoá hết</button></div>
+              <div class="tool-actions" style="margin-top:12px"><button class="btn sm" id="moSpace">Space</button><button class="btn sm" id="moBs">⌫ Backspace</button><button class="btn sm" id="moEnter">Enter</button><button class="btn sm" id="moCaps">Caps Lock</button><button class="btn sm" id="moHint" title="Bật / tắt gợi ý ngay trên văn bản">Gợi ý</button><button class="btn sm danger" id="moClear">Xoá hết</button></div>
               <div class="mo-log" id="moLog" aria-label="Các phím gửi sang máy tính"></div>
-              <p class="hint">Dòng dưới cùng là những gì bàn phím gửi sang máy tính: <b>⌫</b> là Backspace xoá ký tự tạm trước khi hiện ký tự mới. Phím Space / Backspace / Enter cũng chốt ký tự đang gõ, giống firmware.</p>
+              <p class="hint">Dòng dưới cùng là những gì bàn phím gửi sang máy tính: <b>⌫</b> là Backspace xoá ký tự tạm trước khi hiện ký tự mới. Phím Space / Backspace / Enter cũng chốt ký tự đang gõ, giống firmware. Nút <b>Gợi ý</b> bật / tắt phần <code>[.i -a]</code> gõ thêm sau ký tự (thêm chấm ra <b>i</b>, thêm gạch ra <b>a</b>), phần này tự xoá ở lần bấm kế tiếp hoặc khi chốt; trên bàn phím thật dùng phím Morse <b>Gợi ý</b> (nhóm Morse trong tab Bàn phím).</p>
             </div></div>
             <div class="card"><div class="card-hd"><h2>Thử bằng bàn phím thật</h2><span class="sub">cần firmware v6 · layer Morse</span></div><div class="card-bd">
               <textarea class="mac-in mac-ta" id="moReal" rows="3" style="min-height:0;height:84px" spellcheck="false" placeholder="Chuyển bàn phím sang layer Morse (bấm nút BOOT trên board 3 lần) rồi gõ vào đây…"></textarea>
@@ -1194,7 +1194,7 @@ for (let i = 0; i < 4; i++) A(TD(i), `TD(${i}) — tap dance ${i}`, 'special', `
 A(0x7020, 'RENAME — đổi tên layer trên OLED', 'special', 'RENAME');
 A(0x7F00, 'BOOTSEL — vào chế độ nạp firmware', 'special', 'BOOT');
 for (let i = 0; i < 16; i++) A(0x7100 + i, `MACRO ${i + 1} — chạy macro ${i + 1}`, 'macro', `M${i + 1}`);
-A(0x7060, 'MORSE Chấm — bấm 1 nét ngắn', 'morse', '•'); A(0x7061, 'MORSE Gạch — bấm 1 nét dài', 'morse', '—'); A(0x7062, 'MORSE Xong — chốt ký tự đang gõ', 'morse', 'OK');
+A(0x7060, 'MORSE Chấm — bấm 1 nét ngắn', 'morse', '•'); A(0x7061, 'MORSE Gạch — bấm 1 nét dài', 'morse', '—'); A(0x7062, 'MORSE Xong — chốt ký tự đang gõ', 'morse', 'OK'); A(0x7063, 'MORSE Gợi ý — bật / tắt gợi ý trên văn bản, vd e [.i -a]', 'morse', '?');
 const KMAP = new Map(C.map(o => [o.c, o]));
 const isMacro = c => (c & 0xFF00) === 0x7100 && (c & 255) < 16;
 const nameOf = c => {
@@ -1212,7 +1212,7 @@ function catClass(c) {
   if (c & 0x8000) return 'media';
   const hi = c & 0xFF00;
   if (hi === 0x4000 || hi === 0x4100 || c === 0x4200 || c === 0x4201) return 'layer';
-  if (hi === 0x5000 || hi === 0x6000 || hi === 0x7100 || (c >= 0x7060 && c <= 0x7062)) return 'special';
+  if (hi === 0x5000 || hi === 0x6000 || hi === 0x7100 || (c >= 0x7060 && c <= 0x7063)) return 'special';
   if (c >= 0x7010 && c <= 0x7016) return 'led';
   if ((c >= 0x7001 && c <= 0x7005) || c === 0x7020 || c === 0x7F00) return 'special';
   if (c >= 224 && c <= 231) return 'mod';
@@ -3127,24 +3127,44 @@ const MORSE_TAB = [   // [ký tự, mã] — cùng thứ tự với MORSE_TAB tr
   [".", ".-.-.-"], [",", "--..--"], ["?", "..--.."], ["'", ".----."], ["!", "-.-.--"], ["/", "-..-."], ["(", "-.--."], [")", "-.--.-"], ["&", ".-..."],
   [":", "---..."], [";", "-.-.-."], ["=", "-...-"], ["+", ".-.-."], ["-", "-....-"], ["_", "..--.-"], ["\"", ".-..-."], ["$", "...-..-"], ["@", ".--.-."]
 ];
-const KC_MORSE = { dot: 0x7060, dash: 0x7061, ok: 0x7062 };
+const KC_MORSE = { dot: 0x7060, dash: 0x7061, ok: 0x7062, hint: 0x7063 };
+const MORSE_HINT_MAX = 8;   // " [.i -a]"
+const MORSE_OPT = { hint: true };   // bật gợi ý trên văn bản — mặc định giống MORSE_HINT_DEF trong main.c
 // Bố cục layer 3 mặc định (giống mo[] trong defaults() của main.c): 20 vị trí = hàng × 5 cột (cột 5 = nút nhấn encoder, giữ trong suốt)
-// Hàng 1: TL(0) về layer 0 · · · Backspace | Hàng 2: Caps · giữ Shift · · Enter | Hàng 3: · · · Space | Hàng 4: Chấm · Gạch · Xong
-const MORSE_LAYOUT = [TL(0), 0, 0, 0x2A, 1, 0x39, 0x7003, 0, 0x28, 1, 0, 0, 0, 0x2C, 1, KC_MORSE.dot, KC_MORSE.dash, KC_MORSE.ok, 0, 0];
+// Hàng 1: TL(0) về layer 0 · · · Backspace | Hàng 2: Caps · giữ Shift · · Enter | Hàng 3: · · · Space | Hàng 4: Chấm · Gạch · Xong · Gợi ý
+const MORSE_LAYOUT = [TL(0), 0, 0, 0x2A, 1, 0x39, 0x7003, 0, 0x28, 1, 0, 0, 0, 0x2C, 1, KC_MORSE.dot, KC_MORSE.dash, KC_MORSE.ok, KC_MORSE.hint, 0];
 const morseFind = code => { for (const t of MORSE_TAB) if (t[1] === code) return t[0]; return ''; };
-const morseNew = () => ({ code: '', shown: false });
-const morseCommit = m => { m.code = ''; m.shown = false; };
+const morseNew = () => ({ code: '', shown: false, hint: 0 });   // hint = số ký tự gợi ý đang hiện trên máy tính
+const morseCommit = m => { m.code = ''; m.shown = false; m.hint = 0; };   // chỉ đặt lại trạng thái, không gửi phím
+// Gợi ý cho mã code: " [.i -a]" = thêm chấm ra 'i', thêm gạch ra 'a' (chỉ in nhánh có ký tự).
+function morseHintStr(code) {
+  if (code.length >= MORSE_MAX) return '';
+  const b = ['.', '-'].map(x => [x, morseFind(code + x)]).filter(t => t[1]).map(t => t[0] + t[1]);
+  return b.length ? ' [' + b.join(' ') + ']' : '';
+}
 // io = { room(), bs(), put(ch) }. Trả 1 nếu nhận, 0 nếu bỏ qua (mã đã dài 7 hoặc hàng đợi phím hết chỗ) — khi bỏ qua trạng thái không đổi.
+// Gợi ý bật: xoá (ký tự tạm + gợi ý cũ), gửi ký tự mới, gửi gợi ý mới; chừa sẵn chỗ để lát nữa xoá gợi ý lúc chốt.
 function morsePress(m, dash, io) {
   if (m.code.length >= MORSE_MAX) return 0;
-  const nc = m.code + (dash ? '-' : '.'), ch = morseFind(nc), need = (m.shown ? 1 : 0) + (ch ? 1 : 0);
-  if (io.room() < need) return 0;
-  if (m.shown) io.bs();
+  const nc = m.code + (dash ? '-' : '.'), ch = morseFind(nc), h = MORSE_OPT.hint ? morseHintStr(nc) : '', del = (m.shown ? 1 : 0) + m.hint;
+  if (io.room() < del + (ch ? 1 : 0) + 2 * h.length) return 0;
+  for (let i = 0; i < del; i++) io.bs();
   if (ch) io.put(ch);
-  m.code = nc; m.shown = !!ch; return 1;
+  for (const c of h) io.put(c);
+  m.code = nc; m.shown = !!ch; m.hint = h.length; return 1;
+}
+// Chốt ký tự: xoá phần gợi ý khỏi văn bản (ký tự tạm ở lại), rồi đặt lại trạng thái.
+function morseCommitIO(m, io) { for (let i = 0; i < m.hint; i++) io.bs(); morseCommit(m); }
+// Bật / tắt gợi ý (đang gõ dở thì hiện hoặc xoá gợi ý ngay). Trả 1 nếu đã đổi, 0 nếu hàng đợi phím hết chỗ.
+function morseSetHint(m, on, io) {
+  on = !!on; if (on === MORSE_OPT.hint) return 1;
+  if (!on) { if (io.room() < m.hint) return 0; for (let i = 0; i < m.hint; i++) io.bs(); m.hint = 0; MORSE_OPT.hint = false; return 1; }
+  const h = m.code ? morseHintStr(m.code) : '';
+  if (io.room() < 2 * h.length) return 0;
+  MORSE_OPT.hint = true; for (const c of h) io.put(c); m.hint = h.length; return 1;
 }
 // </morse-engine>
-const hasMorse = l => { for (let p = 0; p < NK; p++) { const c = w[K(l, p)]; if (c >= KC_MORSE.dot && c <= KC_MORSE.ok) return true; } return false; };
+const hasMorse = l => { for (let p = 0; p < NK; p++) { const c = w[K(l, p)]; if (c >= KC_MORSE.dot && c <= KC_MORSE.hint) return true; } return false; };
 // ----- Morse -----
 const MO_GROUPS = [['Chữ cái', c => /[a-z]/.test(c)], ['Chữ số', c => /[0-9]/.test(c)], ['Dấu câu', c => !/[a-z0-9]/.test(c)]];
 const mo = { m: morseNew(), text: '', caps: false, log: [] };
@@ -3156,12 +3176,13 @@ const moIO = {
 const glyph = code => '<span class="mo-g">' + [...code].map(c => '<i class="' + (c === '.' ? 'd' : 'h') + '"></i>').join('') + '</span>';
 function moEvent(ev) {
   if (ev === 'dot' || ev === 'dash') moPressOne(ev === 'dash');
-  else if (ev === 'ok') morseCommit(mo.m);
-  else if (ev === 'space') { morseCommit(mo.m); mo.text += ' '; mo.log.push('␣'); }
-  else if (ev === 'enter') { morseCommit(mo.m); mo.text += '\n'; mo.log.push('↵'); }
-  else if (ev === 'bs') { morseCommit(mo.m); mo.text = mo.text.slice(0, -1); mo.log.push('⌫'); }
-  else if (ev === 'clear') { morseCommit(mo.m); mo.text = ''; mo.log = []; }
-  if (mo.log.length > 16) mo.log = mo.log.slice(-16);
+  else if (ev === 'ok') morseCommitIO(mo.m, moIO);
+  else if (ev === 'hint') morseSetHint(mo.m, !MORSE_OPT.hint, moIO);
+  else if (ev === 'space') { morseCommitIO(mo.m, moIO); mo.text += ' '; mo.log.push('␣'); }
+  else if (ev === 'enter') { morseCommitIO(mo.m, moIO); mo.text += '\n'; mo.log.push('↵'); }
+  else if (ev === 'bs') { morseCommitIO(mo.m, moIO); mo.text = mo.text.slice(0, -1); mo.log.push('⌫'); }
+  else if (ev === 'clear') { morseCommit(mo.m); mo.text = ''; mo.log = []; }   // xoá hết: bỏ cả văn bản nên không cần xoá gợi ý riêng
+  if (mo.log.length > 40) mo.log = mo.log.slice(-40);
   renderMorseSim();
 }
 function moPressOne(dash) { morsePress(mo.m, dash, moIO); }
@@ -3177,13 +3198,13 @@ function renderMorseSim() {
   }
   $('#moNext').innerHTML = nx.join('') || '<span class="hint" style="margin:0">bấm Xong để chốt</span>';
   $('#moLog').innerHTML = mo.log.map(c => '<i class="' + (c === '⌫' ? 'bs' : '') + '">' + esc(c) + '</i>').join('');
-  $('#moCaps').classList.toggle('active', mo.caps);
+  $('#moCaps').classList.toggle('active', mo.caps); $('#moHint').classList.toggle('active', MORSE_OPT.hint);
   $$('#moTable .mo-cell').forEach(b => { const c = b.dataset.code; b.classList.toggle('hit', !!code && c.startsWith(code)); b.classList.toggle('exact', !!code && c === code); });
 }
 function renderMorseTable() {
   $('#moTable').innerHTML = MO_GROUPS.map(g => '<div class="mo-sec">' + g[0] + '</div><div class="mo-tab">' + MORSE_TAB.filter(t => g[1](t[0])).map(t => '<button type="button" class="mo-cell" data-code="' + t[1] + '" title="' + esc(t[1].replace(/\./g, '•').replace(/-/g, '—')) + '"><b>' + esc(t[0]) + '</b>' + glyph(t[1]) + '</button>').join('') + '</div>').join('');
 }
-function moTypeCode(code) { morseCommit(mo.m); for (const c of code) moPressOne(c === '-'); renderMorseSim(); }
+function moTypeCode(code) { morseCommitIO(mo.m, moIO); for (const c of code) moPressOne(c === '-'); renderMorseSim(); }
 const MO_PN = p => POS.includes(p) ? 'Hàng ' + (Math.floor(p / 5) + 1) + ' · Cột ' + (p % 5 + 1) : [4, 9, 14].includes(p) ? 'Nhấn encoder ' + (p / 5 + 1 | 0) : 'Vị trí ' + p;
 const MO_PICK = [...POS, 4, 9, 14].sort((a, b) => a - b);
 function morseAssignInfo() {   // layer nào đang có phím Morse, đủ 3 phím chưa
@@ -3202,6 +3223,7 @@ function renderMorse() {
   if (!dev) h = '<div class="row"><span class="pill-s">Chưa kết nối</span>Kết nối bàn phím (USB) để gán phím. Ô thử và bảng mã dùng được ngay; bản nháp vẫn sửa offline được.</div>';
   else {
     if (devInfo && devInfo.ver < 6) h += '<div class="row"><span class="pill-s warn">Firmware v' + devInfo.ver + '</span>chưa có chế độ Morse — hãy nạp firmware v6 trở lên.</div>';
+    else if (devInfo && devInfo.ver < 7) h += '<div class="row"><span class="pill-s warn">Firmware v' + devInfo.ver + '</span>chưa có phím Morse «Gợi ý» — nạp firmware v7 trở lên.</div>';
     h += info_.length ? info_.map(x => '<div class="row"><span class="pill-s ' + (x.full ? 'ok' : 'warn') + '">Layer ' + x.l + '</span>Chấm: ' + nm(x.f.dot) + ' · Gạch: ' + nm(x.f.dash) + ' · Xong: ' + nm(x.f.ok) + '</div>').join('') : '<div class="row"><span class="pill-s warn">Chưa gán</span>Chưa có layer nào dùng phím Morse. Bấm «Bố cục Morse đầy đủ» hoặc chọn 3 phím rồi «Gán».</div>';
   }
   st.className = 'mo-status'; st.innerHTML = h;
@@ -3241,7 +3263,7 @@ async function moApplyFull() {
 function bindMorse() {
   renderMorseTable(); renderMorseSim();
   const press = (id, ev) => { const b = $(id); b.onclick = () => { moEvent(ev); $('#moScreen').focus(); }; };
-  press('#moDot', 'dot'); press('#moDash', 'dash'); press('#moOk', 'ok'); press('#moSpace', 'space'); press('#moBs', 'bs'); press('#moEnter', 'enter'); press('#moClear', 'clear');
+  press('#moDot', 'dot'); press('#moDash', 'dash'); press('#moOk', 'ok'); press('#moSpace', 'space'); press('#moBs', 'bs'); press('#moEnter', 'enter'); press('#moClear', 'clear'); press('#moHint', 'hint');
   $('#moCaps').onclick = () => { mo.caps = !mo.caps; renderMorseSim(); };
   $('#moTable').onclick = e => { const b = e.target.closest('.mo-cell'); if (b) moTypeCode(b.dataset.code); };
   const map = { '1': 'dot', '.': 'dot', '2': 'dash', '-': 'dash', '3': 'ok', ' ': 'space', Enter: 'enter', Backspace: 'bs' };

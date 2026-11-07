@@ -130,6 +130,11 @@ int main(void) {
   hn = 0; host[0] = 0; tapk(2); expect("c", "SEQ lui: tu a ve c (vong)"); tapk(3); tapk(1); expect("ca", "SEQ dat lai roi toi: ve buoc dau");
   CHECK(seq_res(0x7208) == 0x7208, "SEQ ngoai pham vi 0-7 giu nguyen"); cfg.w[SQB + 8] = 0x5000; sq_cur[1] = SEQ_NONE; CHECK(seq_res(0x7201) == 0, "buoc la tap dance bi bo qua");
   CHECK(seq_res(0x7202) == 0, "chuoi trong khong lam gi");
+  // phim khac bam giua chung -> chuoi ve dau
+  reset_all(); cfg.w[SQB] = 0x04; cfg.w[SQB + 1] = 0x05; cfg.w[SQB + 8] = 0x07; cfg.w[SQB + 9] = 0x08; KM(0, 1) = 0x7200; KM(0, 2) = 0x7201; KM(0, 5) = 0x1E;
+  tapk(1); tapk(1); hn = 0; host[0] = 0; tapk(5); tapk(1); expect("1a", "SEQ: phim khac -> chuoi ve buoc dau");
+  hn = 0; host[0] = 0; tapk(1); tapk(2); tapk(1); expect("bda", "SEQ: dung chuoi khac -> chuoi cu ve dau"); (void)0;
+  { seq_res(0x04); uint16_t k1 = seq_res(0x7200), k2 = seq_res(0x7200); CHECK(k1 == 4 && k2 == 5, "SEQ"); seq_res(0x04); k1 = seq_res(0x7200); CHECK(k1 == 4, "seq_res(phim khac) dat lai chuoi"); }
   reset_all(); cfg.w[SQB] = 0x04; cfg.w[SQB + 1] = 0x05; { uint16_t a1 = seq_res(0x7200), a2 = seq_res(0x7200), a3 = seq_res(0x7200); CHECK(a1 == 4 && a2 == 5 && a3 == 4, "SEQ encoder: 4,5,4 (co %x %x %x)", a1, a2, a3); a1 = seq_res(0x7280); CHECK(a1 == 5, "SEQ encoder nguoc"); }
   reset_all(); KM(0, 1) = KC_MORSE_DOT; tapk(1); mc_start(0); morse_commit(&mrs); tapk(1); CHECK(mrs.len == 1, "sau macro cham moi la ky tu moi");
   // doi layer giua chung: phim layer chot

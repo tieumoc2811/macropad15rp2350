@@ -676,7 +676,9 @@ static void mc_task(uint32_t now) {
 #define SEQ_NONE 255
 static uint8_t sq_cur[NSQ] = {SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE};
 static uint16_t seq_res(uint16_t kc) {   // tra ve keycode cua buoc ke tiep (0 = khong lam gi); keycode khac giu nguyen
-  uint16_t g = kc & 0xFFF8; if (g != 0x7200 && g != 0x7280 && g != 0x7300) return kc;
+  uint16_t g = kc & 0xFFF8;
+  if (g != 0x7200 && g != 0x7280 && g != 0x7300) { if (kc > KC_TRNS) memset(sq_cur, SEQ_NONE, sizeof sq_cur); return kc; }   // phim / nut encoder khac: moi chuoi ve lai dau
+  for (int m = 0; m < NSQ; m++) if (m != (kc & 7)) sq_cur[m] = SEQ_NONE;   // dung chuoi khac: cac chuoi con lai ve lai dau
   int n = kc & 7, len = 0; while (len < NST && cfg.w[SQB + n * NST + len]) len++;
   if (g == 0x7300) { sq_cur[n] = SEQ_NONE; char s[8] = "S  RST"; s[1] = '1' + n; note(kc, s); return 0; }
   if (!len) return 0;

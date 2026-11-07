@@ -916,7 +916,7 @@ small.mut{font-size:10px;color:var(--muted)}
         </div>
         <div class="hint-card">
           <b>Tap Dance</b> cho phép một phím làm 3 việc: chạm nhanh, giữ lâu và chạm hai lần. <b>Combo</b> ghép hai phím bấm gần nhau thành một phím kết quả; ô A để trống là tắt combo. A/B dùng mã phím <i>sau khi qua layer</i>, giống firmware.<br>
-          <b>Chuỗi</b> mở rộng tap dance: điền tối đa 8 chức năng cho một bộ, rồi gán <b>S1▶</b> (danh mục <b>Chuỗi</b> trong hộp chọn phím) cho một phím hoặc một chiều xoay encoder. Mỗi lần bấm / mỗi nấc xoay chạy chức năng kế tiếp và quay vòng khi hết. Gán <b>S1▶</b> cho chiều thuận và <b>S1◀</b> cho chiều nghịch để xoay tiến / lùi trong danh sách; <b>S1↺</b> đặt lại về đầu. Danh sách dừng ở ô trống đầu tiên. Cần firmware v8.
+          <b>Chuỗi</b> mở rộng tap dance: điền tối đa 8 chức năng cho một bộ, rồi gán <b>S1▶</b> (danh mục <b>Chuỗi</b> trong hộp chọn phím) cho một phím hoặc một chiều xoay encoder. Mỗi lần bấm / mỗi nấc xoay chạy chức năng kế tiếp và quay vòng khi hết. Gán <b>S1▶</b> cho chiều thuận và <b>S1◀</b> cho chiều nghịch để xoay tiến / lùi trong danh sách; <b>S1↺</b> đặt lại về đầu. Danh sách dừng ở ô trống đầu tiên. Bấm bất kỳ phím (hoặc nấc encoder) nào khác ngoài chuỗi đó thì chuỗi tự về lại bước đầu. Cần firmware v8.
         </div>
       </section>
       <section class="view" id="view-led">
@@ -1928,7 +1928,8 @@ function simulateEnc(e, d) {
 }
 const sqCur = Array(NSQ).fill(-1);   // mô phỏng vị trí hiện tại của từng chuỗi (giống sq_cur trong firmware)
 function seqResolve(code) {   // chế độ thử: trả về keycode của bước kế (0 = không làm gì)
-  if (!isSeq(code)) return code;
+  if (!isSeq(code)) { if (code > 1) sqCur.fill(-1); return code; }   // phím khác: mọi chuỗi về lại đầu
+  for (let m = 0; m < NSQ; m++) if (m !== (code & 7)) sqCur[m] = -1;   // dùng chuỗi khác: các chuỗi còn lại về đầu
   const g = code & 0xFFF8, n = code & 7, st = seqSteps(n), len = st.length;
   if (g === SEQ_R) { sqCur[n] = -1; return 0; }
   if (!len) return 0;

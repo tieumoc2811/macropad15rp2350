@@ -70,9 +70,10 @@ enum { LD_MODE, LD_SPEED, LD_BRIGHT, LD_HUE, LD_SAT, LD_OVER, LD_OBMODE, LD_OBBR
 #define NAME_OFF 2048
 #define NM 10                // so ky tu toi da cua ten layer
 #define NAME_MAGIC 0x4C4E414Du
-#define NMAC 16              // so macro
+#define NMAC 32              // so macro (32 * MSLOT + 4 = 32644 byte, vua trong MAC_SZ)
 #define MSLOT 1020           // byte moi o macro: [0]=lap [1,2]=nghi ms [3]=do dai ten [4..15]=ten [16,17]=do dai buoc [18..]=buoc
-#define MAC_SZ 16384         // 4 sector flash ngay duoi sector cau hinh: magic 4 byte + NMAC * MSLOT
+#define MAC_SZ 32768         // 8 sector flash ngay duoi sector cau hinh: magic 4 byte + NMAC * MSLOT
+_Static_assert(4 + NMAC * MSLOT <= MAC_SZ && MAC_SZ % 4096 == 0, "vung macro qua nho");
 #define MAC_OFF (FLASH_OFF - MAC_SZ)
 #define MAC_MAGIC 0x3143414Du
 #define MH 8                 // so phim macro co the giu cung luc
@@ -571,7 +572,7 @@ static void td_flush(void) {
   else if (tds == 1) { qpush(TDW(tdn, tdc == 2 ? 2 : 0)); tds = 2; }   // phim tap dance chua tha: coi nhu bam (da xu ly); tha ra sau chi dua ve 0
 }
 
-// ---- macro: 16 o, luu flash rieng (MAC_OFF), chay khong chan bang may trang thai. Buoc: 1 nhan, 2 giu, 3 tha (ma 16 bit), 4 cho (ms 16 bit), 5 go chu (n, ky tu ASCII) ----
+// ---- macro: NMAC o, luu flash rieng (MAC_OFF), chay khong chan bang may trang thai. Buoc: 1 nhan, 2 giu, 3 tha (ma 16 bit), 4 cho (ms 16 bit), 5 go chu (n, ky tu ASCII) ----
 static uint8_t macimg[MAC_SZ] __attribute__((aligned(4)));
 static bool mac_dirty;
 static uint8_t *mslot(int i) { return macimg + 4 + i * MSLOT; }

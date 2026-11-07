@@ -455,6 +455,10 @@ html[data-theme="light"] select{background-color:#f1f5f9}
 .pk-heading{min-width:130px;max-width:230px}
 .pk-heading h3{margin:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pk-heading p{margin:2px 0 0;font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid var(--line);background:rgba(124,92,255,.07)}
+.pk-name label{font:700 11px var(--mono);color:var(--accent-2)}
+.pk-name .mac-in{width:170px}
+.pk-name small{color:var(--muted);font-size:10.5px;flex:1;min-width:160px}
 .pk-search{flex:1;min-width:170px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:9px;border:1px solid var(--line);background:var(--input-bg)}
 .pk-search svg{width:14px;height:14px;flex:none;stroke:var(--muted);fill:none;stroke-width:1.8;stroke-linecap:round}
 .pk-search input{flex:1;min-width:0;border:0;background:transparent;padding:9px 0;font-size:12px;outline:none}
@@ -611,7 +615,7 @@ html[data-theme="light"] .toast{background:rgba(255,255,255,.97)}
 }
 /* ============ macro ============ */
 .macro-layout{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);gap:18px;align-items:start}
-.mac-list{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.mac-list{display:grid;grid-template-columns:1fr 1fr;gap:7px;max-height:62vh;overflow-y:auto;padding-right:3px}
 .mac-chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.025);color:var(--text-2);text-align:left;transition:.15s}
 .mac-chip b{font:700 11px var(--mono);color:var(--faint)}
 .mac-chip.has b{color:var(--accent-2)}
@@ -834,7 +838,7 @@ small.mut{font-size:10px;color:var(--muted)}
       <section class="view" id="view-macro">
         <div class="macro-layout">
           <div class="card">
-            <div class="card-hd"><h2>Danh sách macro</h2><span class="sub">M1 – M16</span></div>
+            <div class="card-hd"><h2>Danh sách macro</h2><span class="sub" id="macRange">M1 – M32</span></div>
             <div class="card-bd"><div class="mac-list" id="macList"></div></div>
           </div>
           <div class="card">
@@ -843,7 +847,7 @@ small.mut{font-size:10px;color:var(--muted)}
           </div>
         </div>
         <div class="hint-card">
-          <b>Macro</b> là một chuỗi thao tác: nhấn, giữ, nhả phím, chờ và gõ chữ. Có thể thêm từng bước hoặc bấm <b>Ghi từ bàn phím</b> để app ghi lại cả nhịp gõ. Để dùng, vào tab <b>Bàn phím</b>, chọn một phím rồi chọn danh mục <b>Macro</b> (M1–M16); ở <b>Chế độ thử</b>, bấm phím đó sẽ chạy thử macro trên OLED.<br>
+          <b>Macro</b> là một chuỗi thao tác: nhấn, giữ, nhả phím, chờ và gõ chữ. Có thể thêm từng bước hoặc bấm <b>Ghi từ bàn phím</b> để app ghi lại cả nhịp gõ. Để dùng, vào tab <b>Bàn phím</b>, chọn một phím rồi chọn danh mục <b>Macro</b> (M1–M32); ở <b>Chế độ thử</b>, bấm phím đó sẽ chạy thử macro trên OLED.<br>
           <b>Lưu ý:</b> với firmware v4, macro được ghi lên thiết bị khi bấm “Lưu vào thiết bị” và có thể gán cho cả phím nhấn lẫn encoder. Firmware v3 cũ không có vùng nhớ macro nên macro chỉ nằm trong app (bản nháp trình duyệt và hồ sơ JSON).
         </div>
       </section>
@@ -1081,6 +1085,12 @@ small.mut{font-size:10px;color:var(--muted)}
       <button class="btn icon" id="pkClose" title="Đóng">✕</button>
     </div>
     <div class="capture-strip" id="capStrip" hidden><span class="pulse"></span> Nhấn phím trên bàn phím máy tính… <small>Esc để huỷ</small></div>
+    <div class="pk-name" id="pkName" hidden>
+      <label for="pkMacName">Tên macro</label>
+      <input id="pkMacName" class="mac-in" maxlength="12" autocomplete="off" spellcheck="false">
+      <button class="btn sm" id="pkMacSave" type="button">Lưu tên</button>
+      <small id="pkMacHint"></small>
+    </div>
     <div class="modal-bd">
       <div class="cats" id="pkCats"></div>
       <div class="keys-pane"><div class="key-grid" id="pkGrid"></div><div class="empty-state" id="pkEmpty" hidden>Không có phím nào khớp.</div></div>
@@ -1115,7 +1125,7 @@ const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;'
 const hex = c => '0x' + (c & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
 const pct = v => Math.round(v * 100 / 255) + '%';
 
-const L = 32, NK = 20;
+const L = 32, NK = 20, NMAC = 32;   // NMAC: so macro (khop NMAC trong firmware)
 const BASE_ENC = L * NK;          // 640
 const BT = BASE_ENC + L * 6;      // 832 — tap dance
 const BASE_CB = BT + 12;          // 844 — combo
@@ -1193,10 +1203,10 @@ for (let i = 0; i < 4; i++) A(TD(i), `TD(${i}) — tap dance ${i}`, 'special', `
 '1234567890.'.split('').forEach((ch, i) => A(NKK(i), `Nokia ${ch} — multitap`, 'special', `NK${ch}`));
 A(0x7020, 'RENAME — đổi tên layer trên OLED', 'special', 'RENAME');
 A(0x7F00, 'BOOTSEL — vào chế độ nạp firmware', 'special', 'BOOT');
-for (let i = 0; i < 16; i++) A(0x7100 + i, `MACRO ${i + 1} — chạy macro ${i + 1}`, 'macro', `M${i + 1}`);
+for (let i = 0; i < NMAC; i++) A(0x7100 + i, `MACRO ${i + 1} — chạy macro ${i + 1}`, 'macro', `M${i + 1}`);
 A(0x7060, 'MORSE Chấm — bấm 1 nét ngắn', 'morse', '•'); A(0x7061, 'MORSE Gạch — bấm 1 nét dài', 'morse', '—'); A(0x7062, 'MORSE Xong — chốt ký tự đang gõ', 'morse', 'OK'); A(0x7063, 'MORSE Gợi ý — bật / tắt gợi ý trên văn bản, vd e [.i -a]', 'morse', '?');
 const KMAP = new Map(C.map(o => [o.c, o]));
-const isMacro = c => (c & 0xFF00) === 0x7100 && (c & 255) < 16;
+const isMacro = c => (c & 0xFF00) === 0x7100 && (c & 255) < NMAC;
 const nameOf = c => {
   if (isMacro(c)) { const m = macros[c & 255]; return `MACRO ${(c & 255) + 1}` + (m && m.name ? ' — ' + m.name : ''); }
   return (KMAP.get(c) || { n: 'Phím lạ ' + hex(c) }).n;
@@ -1255,10 +1265,10 @@ let hist = [], hi = -1;
 let view = 'keymap', pickerOpen = false, capturing = false, pkCat = 'all';
 let dlgOpen = false, dlgResolve = null;
 const oled = { last: '', count: 0, t: 0 };
-const NMAC = 16, MAXSTEPS = 64;
+const MAXSTEPS = 64;
 let macros = defaultMacros();
 let macSel = 0, macRec = null, macToken = 0, macRunning = false;
-let pickCb = null, pickInfo = null, pickCancel = null, fwFx = 0;
+let pickCb = null, pickInfo = null, pickCancel = null, fwFx = 0, pkNameTouched = false;
 
 function defaults() {
   w.fill(0);
@@ -1523,7 +1533,7 @@ function renderTools() {
     <div class="info-row"><span>Số word</span><b>${devInfo && devInfo.NW ? devInfo.NW : NW}</b></div>
     <div class="info-row"><span>Firmware</span><b>v${devInfo ? devInfo.ver : '?'}</b></div>
     <div class="info-row"><span>Hiệu ứng LED</span><b>${nfxDev()} / ${FX.length}</b></div>
-    <div class="info-row"><span>Macro trên thiết bị</span><b>${hasMac() ? devInfo.nmac + ' ô' : 'Không (firmware cũ)'}</b></div>
+    <div class="info-row"><span>Macro trên thiết bị</span><b>${hasMac() ? devMac() + ' ô' + (devMac() < NMAC ? ` (app hỗ trợ ${NMAC})` : '') : 'Không (firmware cũ)'}</b></div>
     <div class="info-row"><span>Trạng thái</span><b>${dirty ? 'Có thay đổi chưa lưu' : 'Đã đồng bộ'}</b></div>`;
 }
 function updateConnUI() {
@@ -1616,7 +1626,8 @@ function openPicker(opts) {
   $('#pkSub').textContent = 'Hiện tại: ' + (pinfo.code ? shortOf(pinfo.code) + ' · ' + hex(pinfo.code) : 'chưa chọn');
   $('#pkTrns').style.display = $('#pkNone').style.display = pickCb ? 'none' : '';
   $('#pkSearch').value = '';
-  renderCats(); renderPicker();
+  pkNameTouched = false;
+  renderCats(); renderPicker(); renderPkName();
   $('#pkWrap').classList.add('on'); $('#pkWrap').setAttribute('aria-hidden', 'false');
   document.body.classList.add('locked');
   updateCaptureUI();
@@ -1647,27 +1658,45 @@ function renderCats() {
   const all = Object.values(counts).reduce((a, b) => a + b, 0);
   const cats = [{ id: 'all', name: 'Tất cả', n: all }].concat(CATS.map(c => ({ id: c.id, name: c.name, n: counts[c.id] || 0 })));
   $('#pkCats').innerHTML = cats.map(c => `<button type="button" class="cat ${pkCat === c.id ? 'on' : ''}" data-cat="${c.id}">${esc(c.name)}<span>${c.n}</span></button>`).join('');
-  $$('#pkCats .cat').forEach(b => b.addEventListener('click', () => { pkCat = b.dataset.cat; renderCats(); renderPicker(); }));
+  $$('#pkCats .cat').forEach(b => b.addEventListener('click', () => { pkCat = b.dataset.cat; renderCats(); renderPicker(); renderPkName(); }));
 }
 const norm = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
 function pickerItems() {
   const q = norm($('#pkSearch').value.trim());
   return C.filter(o => {
+    const o_n = isMacro(o.c) ? nameOf(o.c) : o.n;
     if ((o.c === 0x4000 || o.c === 0x4100) && (o.c & 31) >= nl()) return false;
     if (pickCb && (o.c <= 1 || (o.c & 0xFF00) === 0x7100)) return false;
     if (pkCat !== 'all' && o.cat !== pkCat) return false;
     if (!q) return true;
-    return norm(o.n).includes(q) || norm(o.s).includes(q) || hex(o.c).toLowerCase().includes(q) || norm(CATNAME[o.cat] || '').includes(q);
+    return norm(o_n).includes(q) || norm(o.s).includes(q) || hex(o.c).toLowerCase().includes(q) || norm(CATNAME[o.cat] || '').includes(q);
   });
 }
 function renderPicker() {
   const items = pickerItems(), cur = pickCb ? pickInfo.code : (sel ? w[sel.idx] : -1);
-  $('#pkGrid').innerHTML = items.map(o => `<button type="button" class="kbtn ${o.c === cur ? 'cur' : ''}" data-code="${o.c}" title="${esc(o.n)} · ${hex(o.c)}"><span class="n">${esc(o.n)}</span><span class="c">${hex(o.c)}</span></button>`).join('');
+  $('#pkGrid').innerHTML = items.map(o => `<button type="button" class="kbtn ${o.c === cur ? 'cur' : ''}" data-code="${o.c}" title="${esc(isMacro(o.c) ? nameOf(o.c) : o.n)} · ${hex(o.c)}"><span class="n">${esc(isMacro(o.c) ? 'M' + ((o.c & 255) + 1) + (macros[o.c & 255].name ? ' · ' + macros[o.c & 255].name : '') : o.n)}</span><span class="c">${hex(o.c)}</span></button>`).join('');
   $('#pkEmpty').hidden = items.length > 0;
   $('#pkCount').textContent = items.length + ' phím';
   $$('#pkGrid .kbtn').forEach(b => b.addEventListener('click', () => assign(+b.dataset.code)));
 }
+function curMacro() { const c = pickCb ? 0 : (sel ? w[sel.idx] : 0); return isMacro(c) ? c & 255 : -1; }
+function renderPkName() {
+  const box = $('#pkName'); if (!box) return;
+  const cm = curMacro(), show = !pickCb && (pkCat === 'macro' || cm >= 0);
+  box.hidden = !show; if (!show) return;
+  const inp = $('#pkMacName');
+  if (!pkNameTouched) inp.value = cm >= 0 ? macros[cm].name : '';
+  inp.placeholder = cm >= 0 ? 'M' + (cm + 1) : 'Gõ tên rồi bấm M…';
+  $('#pkMacSave').hidden = cm < 0;
+  $('#pkMacHint').textContent = cm >= 0 ? `Đổi tên macro M${cm + 1} đang gán cho phím này. Muốn gán macro khác cùng tên mới: gõ tên rồi bấm macro đó bên dưới.` : 'Gõ tên rồi bấm một macro bên dưới: macro đó được gán cho phím và lấy tên này. Để trống = giữ tên cũ.';
+}
+function pkSaveName() {
+  const cm = curMacro(); if (cm < 0) return;
+  macros[cm].name = $('#pkMacName').value.trim().slice(0, 12); pkNameTouched = false;
+  markDirty(); renderPicker(); renderAll(); renderPkName(); toast(`Đã đặt tên M${cm + 1}: ${macros[cm].name || '(trống)'}`, 'ok');
+}
 function assign(code) {
+  if (!pickCb && isMacro(code) && pkNameTouched && !$('#pkName').hidden) { macros[code & 255].name = $('#pkMacName').value.trim().slice(0, 12); markDirty(); }
   if (pickCb) { const f = pickCb; pickCb = null; pickCancel = null; closePicker(); f(code); return; }
   if (!sel) return;
   const idx = sel.idx, pos = sel.pos;
@@ -1967,18 +1996,22 @@ async function macWrite(off, bytes) {
 }
 async function readMacros() {
   const out = [];
-  for (let i = 0; i < NMAC; i++) {
+  const nd = devMac();
+  for (let i = 0; i < nd; i++) {
     const base = i * MSLOT, head = await macRead(base, 18), len = head[16] | (head[17] << 8);
     const buf = new Uint8Array(18 + (len <= MSLOT - 18 ? len : 0)); buf.set(head);
     for (let o = 18; o < buf.length; o += 28) buf.set(await macRead(base + o, Math.min(28, buf.length - o)), o);
     out.push(macroDecode(buf));
-    setBusy(true, 90 + Math.round((i + 1) * 10 / NMAC));
+    setBusy(true, 90 + Math.round((i + 1) * 10 / nd));
   }
+  while (out.length < NMAC) out.push(macros[out.length] || newMacro());   // o vuot qua bo nho thiet bi: giu ban nhap trong app
   return sanitizeMacros(out);
 }
 async function writeMacros() {
-  const enc = macros.map(macroEncode);   // báo lỗi trước khi gửi bất cứ byte nào
-  for (let i = 0; i < NMAC; i++) { await macWrite(i * MSLOT, enc[i]); setBusy(true, 90 + Math.round((i + 1) * 10 / NMAC)); }
+  const nd = devMac(), enc = macros.slice(0, nd).map(macroEncode);   // báo lỗi trước khi gửi bất cứ byte nào
+  for (let i = 0; i < nd; i++) { await macWrite(i * MSLOT, enc[i]); setBusy(true, 90 + Math.round((i + 1) * 10 / nd)); }
+  const lost = macros.findIndex((m, i) => i >= nd && (m.steps.length || m.name));
+  if (lost >= 0) toast(`Thiết bị chỉ có ${nd} ô macro — macro từ M${nd + 1} trở đi chỉ nằm trong app. Hãy nạp firmware mới.`, 'warn', 5200);
 }
 function writeWord(idx, val) {
   if (!dev) return Promise.resolve();
@@ -2556,6 +2589,9 @@ function bindStaticEvents() {
   $('#pkClose').addEventListener('click', closePicker);
   $('#pkCap').addEventListener('click', () => { capturing = !capturing; updateCaptureUI(); });
   $('#pkSearch').addEventListener('input', renderPicker);
+  $('#pkMacName').addEventListener('input', () => { pkNameTouched = true; });
+  $('#pkMacName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); pkSaveName(); } });
+  $('#pkMacSave').addEventListener('click', pkSaveName);
   $('#pkTrns').addEventListener('click', () => { if (sel) quickAssign(1); closePicker(); });
   $('#pkNone').addEventListener('click', () => { if (sel) quickAssign(0); closePicker(); });
   $('#pkWrap').addEventListener('mousedown', e => { if (e.target === $('#pkWrap')) closePicker(); });
@@ -2655,7 +2691,8 @@ const devNw = () => Math.min(NW, (devInfo && devInfo.NW) || NW);
 const hasRot = () => !connected || devNw() > LDB + ROT_I;   // firmware cũ không có xoay OLED
 const hasLayerRot = () => !connected || devNw() >= NW;
 const nfxDev = () => (devInfo && devInfo.nfx) || 16;
-const hasMac = () => !!(devInfo && devInfo.ver >= 4 && devInfo.nmac >= NMAC);
+const devMac = () => (devInfo && devInfo.ver >= 4) ? Math.min(NMAC, devInfo.nmac | 0) : 0;   // so o macro thiet bi co (firmware cu: 16)
+const hasMac = () => devMac() > 0;
 function devVal(idx, v) {
   if (idx === LDB) { if (v < nfxDev()) fwFx = v; else return fwFx; }
   return v;

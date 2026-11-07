@@ -52,7 +52,7 @@ static void morse(const char *code, int ok) { for (; *code; code++) tapk(*code =
 static void expect(const char *want, const char *what) { CHECK(!strcmp(host, want), "%s: may tinh co '%s', mong '%s'", what, host, want); }
 static void to_morse_layer(void) { for (int i = 0; i < 3; i++) { cycle_layer(1); pump(5); } }   // nut BOOT tren board: L0 -> L1 -> L2 -> L3
 static void tapH(int p) { press2(p, 0); pump(3); release2(p, 0); pump(400); }   // bam NGAN (nha khi goi y chua xoa xong) roi cho hang doi xa het   // bam roi cho hang doi xa het (goi y: moi lan bam ~20 phim ao)
-static void reset_all(void) { morse_hint_on = 0; hn = 0; host[0] = 0; memset(prevk, 0, 6); usb_up = true; down = 0; tl = 0; memset(pressed, 0, sizeof pressed); defaults(); relayer(); morse_commit(&mrs); qh = qt = 0; tap = 0; tap_phase = 0; caps = false; tds = 0; pend = -1; tg = 0; latch_wait = false; lat = 0; pump(20); }
+static void reset_all(void) { memset(sq_cur, 0xFF, sizeof sq_cur); morse_hint_on = 0; hn = 0; host[0] = 0; memset(prevk, 0, 6); usb_up = true; down = 0; tl = 0; memset(pressed, 0, sizeof pressed); defaults(); relayer(); morse_commit(&mrs); qh = qt = 0; tap = 0; tap_phase = 0; caps = false; tds = 0; pend = -1; tg = 0; latch_wait = false; lat = 0; pump(20); }
 
 int main(void) {
   reset_all();
@@ -124,6 +124,13 @@ int main(void) {
   press(2); release(2); fake_ms += 30; press(2); release(2); fake_ms += 300; td_task(fake_ms); pump(60); expect("b", "bam doi -> b");
   hn = 0; host[0] = 0; press(2); release(2); fake_ms += 300; td_task(fake_ms); pump(60); expect("a", "bam don -> a");
   // macro chay: chot ky tu Morse
+  // chuoi SEQ: phim 1 = S1 toi, phim 2 = S1 lui, phim 3 = dat lai; buoc a, b, c (4 = het)
+  reset_all(); cfg.w[SQB] = 0x04; cfg.w[SQB + 1] = 0x05; cfg.w[SQB + 2] = 0x06; KM(0, 1) = 0x7200; KM(0, 2) = 0x7280; KM(0, 3) = 0x7300;
+  tapk(1); tapk(1); tapk(1); tapk(1); expect("abca", "SEQ toi: quay vong sau buoc cuoi");
+  hn = 0; host[0] = 0; tapk(2); expect("c", "SEQ lui: tu a ve c (vong)"); tapk(3); tapk(1); expect("ca", "SEQ dat lai roi toi: ve buoc dau");
+  CHECK(seq_res(0x7208) == 0x7208, "SEQ ngoai pham vi 0-7 giu nguyen"); cfg.w[SQB + 8] = 0x5000; sq_cur[1] = SEQ_NONE; CHECK(seq_res(0x7201) == 0, "buoc la tap dance bi bo qua");
+  CHECK(seq_res(0x7202) == 0, "chuoi trong khong lam gi");
+  reset_all(); cfg.w[SQB] = 0x04; cfg.w[SQB + 1] = 0x05; { uint16_t a1 = seq_res(0x7200), a2 = seq_res(0x7200), a3 = seq_res(0x7200); CHECK(a1 == 4 && a2 == 5 && a3 == 4, "SEQ encoder: 4,5,4 (co %x %x %x)", a1, a2, a3); a1 = seq_res(0x7280); CHECK(a1 == 5, "SEQ encoder nguoc"); }
   reset_all(); KM(0, 1) = KC_MORSE_DOT; tapk(1); mc_start(0); morse_commit(&mrs); tapk(1); CHECK(mrs.len == 1, "sau macro cham moi la ky tu moi");
   // doi layer giua chung: phim layer chot
   reset_all(); to_morse_layer(); tapk(P_DOT); cycle_layer(1); relayer(); tapk(P_DOT); CHECK(mrs.len == 1 || mrs.len == 0, "doi layer khong lam hong trang thai");

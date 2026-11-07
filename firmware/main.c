@@ -27,7 +27,10 @@
 #define LRB (LDB + NLD)      // khoi xoay OLED theo layer: L o, 0-3 = 0/90/180/270 do, >=4 = theo cai dat chung (LD_ROT)
 #define OSB (LRB + L)        // khoi cai dat man hinh OLED (loi chao / screensaver / logo): NOS o
 #define NOS 8
-#define NW (OSB + NOS)
+#define SQB (OSB + NOS)       // khoi "chuoi" (sequence): NSQ bo x NST buoc, moi buoc 1 keycode (0 = het danh sach)
+#define NSQ 8
+#define NST 8
+#define NW (SQB + NSQ * NST)
 #define OSW(i) cfg.w[OSB + (i)]
 enum { OS_TIMEOUT, OS_SPEED, OS_GREET, OS_GLOGO, OS_GLOOPS, OS_SMODE, OS_FRMS, OS_CORNER };   // giay cho screensaver (0 = tat), toc do chu (1-10), bat loi chao, chieu logo truoc loi chao, so lan chay loi chao, che do screensaver (0 chu, 1 logo, 2 xen ke, 3 tat man hinh), ms moi khung logo, bat logo nho o goc man hinh (0/1; chi huong ngang)
 #define LROT(l) cfg.w[LRB + (l)]
@@ -77,7 +80,7 @@ _Static_assert(4 + NMAC * MSLOT <= MAC_SZ && MAC_SZ % 4096 == 0, "vung macro qua
 #define MAC_OFF (FLASH_OFF - MAC_SZ)
 #define MAC_MAGIC 0x3143414Du
 #define MH 8                 // so phim macro co the giu cung luc
-#define FW_VER 7             // giao thuc: 5 = them loi chao / screensaver / logo dong cho OLED, 6 = go Morse 3 phim (0x7060..0x7062), 7 = them phim Morse "Goi y" (0x7063)
+#define FW_VER 8             // giao thuc: 5 = them loi chao / screensaver / logo dong cho OLED, 6 = go Morse 3 phim (0x7060..0x7062), 7 = them phim Morse "Goi y" (0x7063), 8 = them chuoi SEQ (0x7200 toi / 0x7280 lui / 0x7300 dat lai)
 #define KC_RENAME 0x7020     // doi ten layer dang hien (go bang phim Nokia)
 _Static_assert(sizeof(uint32_t) + 2 * NW <= NAME_OFF, "cfg qua lon");
 #define FLASH_OFF (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
@@ -140,6 +143,7 @@ static void load(void) {
   if (cfg.magic != MAGIC) defaults();
   else if (LD(LD_MODE) >= NFX || LD(LD_BRIGHT) > 255 || LD(LD_OBMODE) >= NOB) led_defaults();   // cau hinh cu (chua co khoi LED, vung nay = 0xFFFF): giu phim, chi dat LED ve mac dinh
   if (OSW(OS_SPEED) < 1 || OSW(OS_SPEED) > 10 || OSW(OS_TIMEOUT) > 43200 || OSW(OS_FRMS) < 20 || OSW(OS_FRMS) > 2000 || OSW(OS_SMODE) > 3 || OSW(OS_GLOOPS) < 1 || OSW(OS_GLOOPS) > 5 || OSW(OS_GREET) > 1 || OSW(OS_GLOGO) > 1) os_defaults();   // cau hinh cu chua co khoi nay (0xFFFF)
+  for (int i = 0; i < NSQ * NST; i++) if (cfg.w[SQB + i] == 0xFFFF) cfg.w[SQB + i] = 0;   // cau hinh cu chua co khoi chuoi (0xFFFF)
   if (OSW(OS_CORNER) > 1) OSW(OS_CORNER) = 0;   // cau hinh cu (o du phong = 0xFFFF)
   if (LD(LD_ROT) > 3) LD(LD_ROT) = OLED_ROT_DEF;   // cau hinh cu chua co o xoay (0xFFFF)
 }
@@ -668,6 +672,21 @@ static void mc_task(uint32_t now) {
   }
 }
 
+// ---- chuoi (SEQ): 1 phim / 1 chieu encoder gan SEQ n -> moi lan kich hoat chay buoc ke tiep trong danh sach n (quay vong). 0x7200+n toi, 0x7280+n lui, 0x7300+n dat lai ----
+#define SEQ_NONE 255
+static uint8_t sq_cur[NSQ] = {SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE};
+static uint16_t seq_res(uint16_t kc) {   // tra ve keycode cua buoc ke tiep (0 = khong lam gi); keycode khac giu nguyen
+  uint16_t g = kc & 0xFFF8; if (g != 0x7200 && g != 0x7280 && g != 0x7300) return kc;
+  int n = kc & 7, len = 0; while (len < NST && cfg.w[SQB + n * NST + len]) len++;
+  if (g == 0x7300) { sq_cur[n] = SEQ_NONE; char s[8] = "S  RST"; s[1] = '1' + n; note(kc, s); return 0; }
+  if (!len) return 0;
+  int c = sq_cur[n], i = g == 0x7200 ? (c >= len ? 0 : (c + 1) % len) : (c >= len ? len - 1 : (c + len - 1) % len);
+  sq_cur[n] = i;
+  uint16_t k = cfg.w[SQB + n * NST + i];
+  if (k == KC_TRNS || (k & 0xF000) == 0x5000 || (k & 0xFE00) == 0x7200 || (k & 0xFF00) == 0x7300) return 0;   // buoc rong / tap dance / chuoi long nhau: bo qua
+  return k;
+}
+
 // ---- xu ly nhan phim ----
 static void fire(int p, uint16_t kc) {
   if (!kc || kc == KC_TRNS) return;
@@ -707,7 +726,7 @@ static void apply(uint32_t raw) {
     }
     if (raw & b) {
       led_flash(); strip_key(p);
-      uint16_t kc = res_key(p);
+      uint16_t kc = seq_res(res_key(p));
       if (tds && !(tds == 3 && (kc & 0xF000) == 0x5000 && (kc & 3) == tdn)) td_flush();   // tru phim chinh tap dance do (bam doi)
       if (pend >= 0) {
         int hit = -1;
@@ -745,7 +764,7 @@ static void enc_poll(void) {
     act_ms = ms();
     acc[e] += t[prev[e] << 2 | cur]; prev[e] = cur;
     int d = acc[e] >= 4 ? 1 : acc[e] <= -4 ? 0 : -1;
-    if (d >= 0) { acc[e] = 0; if (rn_active) continue; led_flash(); strip_all(); uint16_t k = res_enc(e, d); if (IS_MORSE(k)) morse_key(k); else if (layer_action(k)) { /* da chuyen layer */ } else if ((k & 0xFF00) == 0x7100 && (k & 255) < NMAC) { if (mc_id < 0) mc_start(k & 255); } else if (k) { char nm[8]; kcname(k, nm); note(k, nm); qpush(k); } }
+    if (d >= 0) { acc[e] = 0; if (rn_active) continue; led_flash(); strip_all(); uint16_t k = seq_res(res_enc(e, d)); if (IS_MORSE(k)) morse_key(k); else if (layer_action(k)) { /* da chuyen layer */ } else if ((k & 0xFF00) == 0x7100 && (k & 255) < NMAC) { if (mc_id < 0) mc_start(k & 255); } else if (k) { char nm[8]; kcname(k, nm); note(k, nm); qpush(k); } }
   }
 }
 static void hid_task(void) {

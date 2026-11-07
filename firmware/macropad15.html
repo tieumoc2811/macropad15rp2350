@@ -341,6 +341,12 @@ html[data-theme="light"] .layer-chip.on .lc-n{color:#6d4aff}
 .tag{font:600 9px/1 var(--mono);letter-spacing:.5px;padding:4px 6px;border-radius:5px;background:rgba(255,255,255,.06);color:var(--faint);text-transform:uppercase}
 .tag.on{background:rgba(61,220,151,.12);color:var(--ok)}
 .td-head .btn,.cb-head .btn{margin-left:auto}
+.sq-card{grid-column:1/-1}
+.sq-item{padding:12px 0;border-bottom:1px solid var(--line)}
+.sq-item:first-child{padding-top:2px}
+.sq-item:last-child{border-bottom:0;padding-bottom:2px}
+.sq-slots{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:7px}
+.sq-warn{padding:9px 12px;margin-bottom:10px;border-radius:9px;background:rgba(255,184,107,.1);color:var(--muted);font-size:11.5px}
 .td-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
 .mini-key{
   display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:8px 9px;border-radius:9px;
@@ -610,6 +616,7 @@ html[data-theme="light"] .toast{background:rgba(255,255,255,.97)}
   .key .kn{font-size:8.5px}
   .led-board{max-width:190px}
   .td-slots{grid-template-columns:1fr 1fr 1fr}
+  .sq-slots{grid-template-columns:repeat(4,minmax(0,1fr))}
   .mini-key{padding:6px}
   .mini-key span{font-size:10.5px}
 }
@@ -902,9 +909,14 @@ small.mut{font-size:10px;color:var(--muted)}
             <div class="card-hd"><h2>Combo</h2><span class="sub">Hai phím trong 30 ms</span></div>
             <div class="card-bd" id="cbList"></div>
           </div>
+          <div class="card sq-card">
+            <div class="card-hd"><h2>Chuỗi (Sequence)</h2><span class="sub">8 bộ × 8 bước · mỗi lần kích hoạt chạy 1 bước</span></div>
+            <div class="card-bd" id="sqList"></div>
+          </div>
         </div>
         <div class="hint-card">
-          <b>Tap Dance</b> cho phép một phím làm 3 việc: chạm nhanh, giữ lâu và chạm hai lần. <b>Combo</b> ghép hai phím bấm gần nhau thành một phím kết quả; ô A để trống là tắt combo. A/B dùng mã phím <i>sau khi qua layer</i>, giống firmware.
+          <b>Tap Dance</b> cho phép một phím làm 3 việc: chạm nhanh, giữ lâu và chạm hai lần. <b>Combo</b> ghép hai phím bấm gần nhau thành một phím kết quả; ô A để trống là tắt combo. A/B dùng mã phím <i>sau khi qua layer</i>, giống firmware.<br>
+          <b>Chuỗi</b> mở rộng tap dance: điền tối đa 8 chức năng cho một bộ, rồi gán <b>S1▶</b> (danh mục <b>Chuỗi</b> trong hộp chọn phím) cho một phím hoặc một chiều xoay encoder. Mỗi lần bấm / mỗi nấc xoay chạy chức năng kế tiếp và quay vòng khi hết. Gán <b>S1▶</b> cho chiều thuận và <b>S1◀</b> cho chiều nghịch để xoay tiến / lùi trong danh sách; <b>S1↺</b> đặt lại về đầu. Danh sách dừng ở ô trống đầu tiên. Cần firmware v8.
         </div>
       </section>
       <section class="view" id="view-led">
@@ -1131,15 +1143,19 @@ const BT = BASE_ENC + L * 6;      // 832 — tap dance
 const BASE_CB = BT + 12;          // 844 — combo
 const NLI = BASE_CB + 12;         // 856 — số layer
 const LDB = NLI + 1;              // 857 — khối LED
-const NLD = 9, LRB = LDB + NLD, OSB = LRB + L, NOS = 8, NW = OSB + NOS;   // 906
+const NLD = 9, LRB = LDB + NLD, OSB = LRB + L, NOS = 8, SQB = OSB + NOS;   // 906
+const NSQ = 8, NST = 8, NW = SQB + NSQ * NST;   // 970 — SQB.. = khối chuỗi (SEQ): 8 bộ × 8 bước, mỗi bước 1 keycode, ô 0 = hết danh sách
 const ROT_I = 8;                  // LDB+8 = hướng OLED chung: 0=0°, 1=90°, 2=180°, 3=270°
 // LRB..LRB+L-1 = hướng OLED riêng từng layer (0-3), >=4 = theo hướng chung
-const NW_OLD = LDB + 8, NW_OLD2 = LDB + 9, NW_OLD3 = LRB + L;   // 865 / 866 / 898 word: firmware & hồ sơ cũ
+const NW_OLD = LDB + 8, NW_OLD2 = LDB + 9, NW_OLD3 = LRB + L, NW_OLD4 = SQB;   // 865 / 866 / 898 word: firmware & hồ sơ cũ
 // OSB.. = cài đặt màn hình: [giây screensaver, tốc độ chữ, bật lời chào, logo trước lời chào, số lần chạy, kiểu screensaver, ms/khung, dự phòng]
 const OS_DEF = [300, 5, 1, 0, 1, 0, 120, 0];
 const K = (l, p) => l * NK + p;
 const ENC = (l, e, d) => BASE_ENC + l * 6 + e * 2 + d;
 const TDW = (n, k) => BT + n * 3 + k;
+const SQW = (n, k) => SQB + n * NST + k;
+const SEQ_F = 0x7200, SEQ_B = 0x7280, SEQ_R = 0x7300;   // chuỗi: tới / lùi / đặt lại (+ số bộ 0-7)
+const isSeq = c => { const g = c & 0xFFF8; return g === SEQ_F || g === SEQ_B || g === SEQ_R; };
 const CBW = (n, k) => BASE_CB + n * 3 + k;
 
 const POS = [0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 15, 16, 17];
@@ -1152,7 +1168,7 @@ const CATS = [
   { id: 'basic', name: 'Cơ bản' }, { id: 'letters', name: 'Chữ cái' }, { id: 'digits', name: 'Số' },
   { id: 'nav', name: 'Điều hướng' }, { id: 'fkeys', name: 'Phím F' }, { id: 'mods', name: 'Bổ trợ' },
   { id: 'media', name: 'Media' }, { id: 'layer', name: 'Layer' }, { id: 'led', name: 'Đèn LED' },
-  { id: 'special', name: 'Đặc biệt' }, { id: 'macro', name: 'Macro' }, { id: 'morse', name: 'Morse' }
+  { id: 'special', name: 'Đặc biệt' }, { id: 'seq', name: 'Chuỗi' }, { id: 'macro', name: 'Macro' }, { id: 'morse', name: 'Morse' }
 ];
 const CATNAME = Object.fromEntries(CATS.map(c => [c.id, c.name]));
 const C = [];
@@ -1204,17 +1220,20 @@ for (let i = 0; i < 4; i++) A(TD(i), `TD(${i}) — tap dance ${i}`, 'special', `
 A(0x7020, 'RENAME — đổi tên layer trên OLED', 'special', 'RENAME');
 A(0x7F00, 'BOOTSEL — vào chế độ nạp firmware', 'special', 'BOOT');
 for (let i = 0; i < NMAC; i++) A(0x7100 + i, `MACRO ${i + 1} — chạy macro ${i + 1}`, 'macro', `M${i + 1}`);
+for (let i = 0; i < NSQ; i++) { A(SEQ_F + i, `SEQ ${i + 1} ▶ — chuỗi ${i + 1}: chạy bước kế tiếp`, 'seq', `S${i + 1}▶`); A(SEQ_B + i, `SEQ ${i + 1} ◀ — chuỗi ${i + 1}: lùi về bước trước`, 'seq', `S${i + 1}◀`); A(SEQ_R + i, `SEQ ${i + 1} ↺ — chuỗi ${i + 1}: đặt lại về đầu`, 'seq', `S${i + 1}↺`); }
 A(0x7060, 'MORSE Chấm — bấm 1 nét ngắn', 'morse', '•'); A(0x7061, 'MORSE Gạch — bấm 1 nét dài', 'morse', '—'); A(0x7062, 'MORSE Xong — chốt ký tự đang gõ', 'morse', 'OK'); A(0x7063, 'MORSE Gợi ý — bật / tắt gợi ý trên văn bản, vd e [.i -a]', 'morse', '?');
 const KMAP = new Map(C.map(o => [o.c, o]));
 const isMacro = c => (c & 0xFF00) === 0x7100 && (c & 255) < NMAC;
 const nameOf = c => {
   if (isMacro(c)) { const m = macros[c & 255]; return `MACRO ${(c & 255) + 1}` + (m && m.name ? ' — ' + m.name : ''); }
+  if (isSeq(c)) { const n = c & 7, g = c & 0xFFF8, st = seqSteps(n).map(x => shortOf(x)).join(' → '); return `SEQ ${n + 1} ${g === SEQ_F ? '▶ tới' : g === SEQ_B ? '◀ lùi' : '↺ đặt lại'}` + (st ? ' — ' + st : ''); }
   return (KMAP.get(c) || { n: 'Phím lạ ' + hex(c) }).n;
 };
 const shortOf = c => {
   if (isMacro(c)) { const m = macros[c & 255]; return m && m.name ? m.name.slice(0, 8) : 'M' + ((c & 255) + 1); }
   return (KMAP.get(c) || { s: hex(c) }).s;
 };
+function seqSteps(n) { const o = []; for (let k = 0; k < NST && w[SQW(n, k)]; k++) o.push(w[SQW(n, k)]); return o; }
 const catOf = c => (KMAP.get(c) || { cat: 'std' }).cat;
 function catClass(c) {
   if (c === 0) return 'none';
@@ -1222,7 +1241,7 @@ function catClass(c) {
   if (c & 0x8000) return 'media';
   const hi = c & 0xFF00;
   if (hi === 0x4000 || hi === 0x4100 || c === 0x4200 || c === 0x4201) return 'layer';
-  if (hi === 0x5000 || hi === 0x6000 || hi === 0x7100 || (c >= 0x7060 && c <= 0x7063)) return 'special';
+  if (hi === 0x5000 || hi === 0x6000 || hi === 0x7100 || isSeq(c) || (c >= 0x7060 && c <= 0x7063)) return 'special';
   if (c >= 0x7010 && c <= 0x7016) return 'led';
   if ((c >= 0x7001 && c <= 0x7005) || c === 0x7020 || c === 0x7F00) return 'special';
   if (c >= 224 && c <= 231) return 'mod';
@@ -1299,8 +1318,8 @@ const nl = () => clamp(w[NLI] | 0 || 1, 1, L);
 const layerLabel = l => names[l] || (l === 0 ? 'BASE' : l === 2 ? 'NOKIA' : hasMorse(l) ? 'MORSE' : 'LAYER' + l);   // giong lname_get() trong firmware
 
 /* ---------- bản nháp / lịch sử ---------- */
-const okLen = n => n === NW || n === NW_OLD || n === NW_OLD2 || n === NW_OLD3;   // hồ sơ cũ vẫn nhập được: hướng OLED lấy mặc định
-function padWords(a) { const o = Array.from(a); if (o.length === NW_OLD) o.push(2); while (o.length < NW) o.push(o.length < OSB ? 4 : OS_DEF[o.length - OSB]); return o; }
+const okLen = n => n === NW || n === NW_OLD || n === NW_OLD2 || n === NW_OLD3 || n === NW_OLD4;   // hồ sơ cũ vẫn nhập được: hướng OLED lấy mặc định
+function padWords(a) { const o = Array.from(a); if (o.length === NW_OLD) o.push(2); while (o.length < NW) o.push(o.length < OSB ? 4 : o.length < SQB ? OS_DEF[o.length - OSB] : 0); return o; }
 function loadDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -1489,6 +1508,17 @@ function renderAdv() {
       </div></div>`);
   }
   $('#tdList').innerHTML = td.join('');
+  const sq = [];
+  for (let n = 0; n < NSQ; n++) {
+    const len = seqSteps(n).length;
+    let slots = '';
+    for (let k = 0; k < NST; k++) slots += miniKey(w[SQW(n, k)], SQW(n, k), `${k + 1}`, `Chuỗi ${n + 1} · bước ${k + 1}`);
+    sq.push(`<div class="sq-item">
+      <div class="td-head"><b>Chuỗi ${n + 1}</b><span class="tag ${len ? 'on' : ''}">${len ? len + ' bước' : 'Trống'}</span><span class="muted">gán <b>S${n + 1}▶</b> / <b>S${n + 1}◀</b></span><button class="btn ghost xs" data-clear-sq="${n}">Xoá</button></div>
+      <div class="sq-slots">${slots}</div></div>`);
+  }
+  const noSq = dev && devNw() < NW;
+  $('#sqList').innerHTML = (noSq ? '<div class="sq-warn">Firmware trên thiết bị chưa có chuỗi (cần v8). Bạn vẫn soạn được trong app, nhưng chưa ghi lên thiết bị.</div>' : '') + sq.join('');
   const cb = [];
   for (let n = 0; n < 4; n++) {
     const a = w[CBW(n, 0)], b = w[CBW(n, 1)], r = w[CBW(n, 2)], on = !!a;
@@ -1667,6 +1697,7 @@ function pickerItems() {
     const o_n = isMacro(o.c) ? nameOf(o.c) : o.n;
     if ((o.c === 0x4000 || o.c === 0x4100) && (o.c & 31) >= nl()) return false;
     if (pickCb && (o.c <= 1 || (o.c & 0xFF00) === 0x7100)) return false;
+    if (!pickCb && sel && sel.kind === 'sq' && (isSeq(o.c) || (o.c & 0xF000) === 0x5000 || o.c === 1)) return false;   // bước của chuỗi: không lồng chuỗi / tap dance
     if (pkCat !== 'all' && o.cat !== pkCat) return false;
     if (!q) return true;
     return norm(o_n).includes(q) || norm(o.s).includes(q) || hex(o.c).toLowerCase().includes(q) || norm(CATNAME[o.cat] || '').includes(q);
@@ -1855,6 +1886,10 @@ function clearTD(n) {
   for (let k = 0; k < 3; k++) { w[TDW(n, k)] = 0; writeWord(TDW(n, k), 0).catch(() => { }); }
   markDirty(); commit(); renderAdv(); toast(`Đã xoá Tap Dance ${n}`, 'ok');
 }
+function clearSQ(n) {
+  for (let k = 0; k < NST; k++) { w[SQW(n, k)] = 0; writeWord(SQW(n, k), 0).catch(() => { }); }
+  markDirty(); commit(); renderAdv(); toast(`Đã xoá Chuỗi ${n + 1}`, 'ok');
+}
 function clearCB(n) {
   for (let k = 0; k < 3; k++) { w[CBW(n, k)] = 0; writeWord(CBW(n, k), 0).catch(() => { }); }
   markDirty(); commit(); renderAdv(); toast(`Đã tắt Combo ${n + 1}`, 'ok');
@@ -1891,7 +1926,21 @@ function simulateEnc(e, d) {
   const code = resolveEnc(e, d);
   pressFeedback(code, null);
 }
+const sqCur = Array(NSQ).fill(-1);   // mô phỏng vị trí hiện tại của từng chuỗi (giống sq_cur trong firmware)
+function seqResolve(code) {   // chế độ thử: trả về keycode của bước kế (0 = không làm gì)
+  if (!isSeq(code)) return code;
+  const g = code & 0xFFF8, n = code & 7, st = seqSteps(n), len = st.length;
+  if (g === SEQ_R) { sqCur[n] = -1; return 0; }
+  if (!len) return 0;
+  const c = sqCur[n], i = g === SEQ_F ? (c < 0 || c >= len ? 0 : (c + 1) % len) : (c < 0 || c >= len ? len - 1 : (c + len - 1) % len);
+  sqCur[n] = i;
+  const k = st[i];
+  return k === 1 || (k & 0xF000) === 0x5000 || isSeq(k) ? 0 : k;
+}
 function pressFeedback(code, pos) {
+  const raw = code;
+  code = seqResolve(code);
+  if (isSeq(raw) && (raw & 0xFFF8) === SEQ_R) { toast(`Chuỗi ${(raw & 7) + 1} về đầu`, 'info'); }
   oledSet(code);
   if (isMacro(code)) runMacro(code & 255);
   flashLed(pos);
@@ -2014,7 +2063,7 @@ async function writeMacros() {
   if (lost >= 0) toast(`Thiết bị chỉ có ${nd} ô macro — macro từ M${nd + 1} trở đi chỉ nằm trong app. Hãy nạp firmware mới.`, 'warn', 5200);
 }
 function writeWord(idx, val) {
-  if (!dev) return Promise.resolve();
+  if (!dev || idx >= devNw()) return Promise.resolve();   // firmware cũ không có ô này (vd khối chuỗi)
   val = devVal(idx, val);
   return tx([2, idx & 255, 1, val & 255, val >> 8], idx >> 8);
 }
@@ -2601,6 +2650,12 @@ function bindStaticEvents() {
     if (c) { clearTD(+c.dataset.clearTd); return; }
     const m = e.target.closest('.mini-key[data-idx]');
     if (m) { selectCell({ idx: +m.dataset.idx, title: m.dataset.title, pos: null, kind: 'td' }); openPicker(); }
+  });
+  $('#sqList').addEventListener('click', e => {
+    const c = e.target.closest('[data-clear-sq]');
+    if (c) { clearSQ(+c.dataset.clearSq); return; }
+    const m = e.target.closest('.mini-key[data-idx]');
+    if (m) { selectCell({ idx: +m.dataset.idx, title: m.dataset.title, pos: null, kind: 'sq' }); openPicker(); }
   });
   $('#cbList').addEventListener('click', e => {
     const c = e.target.closest('[data-clear-cb]');
